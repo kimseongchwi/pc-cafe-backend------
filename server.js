@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const mysql = require('mysql2');
 const cors = require('cors');
@@ -88,6 +87,7 @@ initialConnection.connect((err) => {
                 return;
             }
 
+            // users 테이블 생성 쿼리
             const createUsersTableQuery = `
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -100,6 +100,7 @@ initialConnection.connect((err) => {
                 )
             `;
 
+            // menus 테이블 생성 쿼리
             const createMenusTableQuery = `
                 CREATE TABLE IF NOT EXISTS menus (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -111,11 +112,14 @@ initialConnection.connect((err) => {
                 )
             `;
 
+            // orders 테이블 생성 쿼리
             const createOrdersTableQuery = `
                 CREATE TABLE IF NOT EXISTS orders (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     user_id INT NOT NULL,
+                    user_name VARCHAR(50) NOT NULL,
                     menu_id INT NOT NULL,
+                    menu_name VARCHAR(100) NOT NULL,
                     quantity INT NOT NULL,
                     status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
                     payment_method ENUM('card', 'cash') NOT NULL,
@@ -380,56 +384,6 @@ function startApp() {
         });
     });
 
-    // 주문 API 수정 (결제 방식 추가)
-    app.post('/api/orders', authenticateToken, (req, res) => {
-        const { menuId, quantity, paymentMethod } = req.body;
-        const userId = req.user.id;
-
-        if (!menuId || !quantity || !paymentMethod) {
-            return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
-        }
-
-        connection.query(
-            'INSERT INTO orders (user_id, menu_id, quantity, payment_method) VALUES (?, ?, ?, ?)',
-            [userId, menuId, quantity, paymentMethod],
-            (error, results) => {
-                if (error) {
-                    console.error('주문 생성 실패:', error);
-                    return res.status(500).json({ message: '주문에 실패했습니다.' });
-                }
-                res.json({
-                    id: results.insertId,
-                    message: '주문이 완료되었습니다.'
-                });
-            }
-        );
-    });
-
-    // 주문 조회 API
-    app.get('/api/orders', authenticateToken, (req, res) => {
-        const query = req.user.role === 'admin' 
-            ? `SELECT orders.*, users.username, users.name as userName, menus.name as menuName, menus.price 
-               FROM orders 
-               JOIN users ON orders.user_id = users.id 
-               JOIN menus ON orders.menu_id = menus.id
-               ORDER BY orders.created_at DESC`
-            : `SELECT orders.*, menus.name as menuName, menus.price 
-               FROM orders 
-               JOIN menus ON orders.menu_id = menus.id 
-               WHERE user_id = ?
-               ORDER BY orders.created_at DESC`;
-
-        const params = req.user.role === 'admin' ? [] : [req.user.id];
-
-        connection.query(query, params, (error, results) => {
-            if (error) {
-                console.error('주문 조회 실패:', error);
-                return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
-            }
-            res.json(results);
-        });
-    });
-
     // 주문 상태 변경 API
     app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
         const { id } = req.params;
@@ -451,6 +405,77 @@ function startApp() {
         );
     });
 
+    // 주문 API 수정 (결제 방식 추가)
+app.post('/api/orders', authenticateToken, (req, res) => {
+    const { menuId, quantity, paymentMethod } = req.body;
+    const userId = req.user.id;
+    const userName = req.user.name;
+
+    if (!menuId || !quantity || !paymentMethod) {
+        return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
+    }
+
+    connection.query(
+        'INSERT INTO orders (user_id, user_name, menu_id, menu_name, quantity, payment_method) VALUES (?, ?, ?, (SELECT name FROM menus WHERE id = ?), ?, ?)',
+        [userId, userName, menuId, menuId, quantity, paymentMethod],
+        (error, results) => {
+            if (error) {
+                console.error('주문 생성 실패:', error);
+                return res.status(500).json({ message: '주문에 실패했습니다.' });
+            }
+            res.json({
+                id: results.insertId,
+                message: '주문이 완료되었습니다.'
+            });
+        }
+    );
+});
+
+// 주문 조회 API
+app.get('/api/orders', authenticateToken, (req, res) => {
+    const query = req.user.role === 'admin' 
+        ? `SELECT orders.*, users.username, users.name as userName, menus.name as menuName, menus.price 
+           FROM orders 
+           JOIN users ON orders.user_id = users.id 
+           JOIN menus ON orders.menu_id = menus.id
+           ORDER BY orders.created_at DESC`
+        : `SELECT orders.*, menus.name as menuName, menus.price 
+           FROM orders 
+           JOIN menus ON orders.menu_id = menus.id 
+           WHERE user_id = ?
+           ORDER BY orders.created_at DESC`;
+
+    const params = req.user.role === 'admin' ? [] : [req.user.id];
+
+    connection.query(query, params, (error, results) => {
+        if (error) {
+            console.error('주문 조회 실패:', error);
+            return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
+        }
+        res.json(results);
+    });
+});
+
+// 주문 상태 변경 API
+app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    connection.query(
+        'UPDATE orders SET status = ? WHERE id = ?',
+        [status, id],
+        (error) => {
+            if (error) {
+                console.error('주문 상태 업데이트 실패:', error);
+                return res.status(500).json({ message: '주문 상태 변경에 실패했습니다.' });
+            }
+            res.json({ 
+                success: true,
+                message: '주문 상태가 변경되었습니다.'
+            });
+        }
+    );
+});
     const PORT = 3000;
     app.listen(PORT, () => {
         console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
