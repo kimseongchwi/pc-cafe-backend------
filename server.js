@@ -344,30 +344,38 @@ function startApp() {
 
     app.delete('/api/menus/:id', authenticateToken, isAdmin, (req, res) => {
         const { id } = req.params;
-
-        connection.query('SELECT image_path FROM menus WHERE id = ?', [id], (error, results) => {
+    
+        // 1. 연관된 주문 데이터 삭제
+        connection.query('DELETE FROM orders WHERE menu_id = ?', [id], (error) => {
             if (error) {
-                console.error('메뉴 조회 실패:', error);
-                res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
-                return;
+                console.error('주문 데이터 삭제 실패:', error);
+                return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
             }
-
-            const menu = results[0];
-            if (menu && menu.image_path) {
-                try {
-                    fs.unlinkSync(menu.image_path);
-                } catch (err) {
-                    console.error('이미지 파일 삭제 실패:', err);
-                }
-            }
-
-            connection.query('DELETE FROM menus WHERE id = ?', [id], (error) => {
+    
+            // 2. 이미지 파일 삭제
+            connection.query('SELECT image_path FROM menus WHERE id = ?', [id], (error, results) => {
                 if (error) {
-                    console.error('메뉴 삭제 실패:', error);
-                    res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
-                    return;
+                    console.error('메뉴 조회 실패:', error);
+                    return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
                 }
-                res.json({ success: true });
+    
+                const menu = results[0];
+                if (menu && menu.image_path) {
+                    try {
+                        fs.unlinkSync(menu.image_path);
+                    } catch (err) {
+                        console.error('이미지 파일 삭제 실패:', err);
+                    }
+                }
+    
+                // 3. 메뉴 데이터 삭제
+                connection.query('DELETE FROM menus WHERE id = ?', [id], (error) => {
+                    if (error) {
+                        console.error('메뉴 삭제 실패:', error);
+                        return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
+                    }
+                    res.json({ success: true });
+                });
             });
         });
     });
