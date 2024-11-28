@@ -165,10 +165,10 @@ function startApp() {
 
     connection.connect((err) => {
         if (err) {
-            console.error('애플리케이션 DB 연결 실패:', err);
+            console.error('DB 연결 실패:', err);
             return;
         }
-        console.log('애플리케이션 DB 연결 성공');
+        console.log('DB 연결 성공');
     });
 
     // 아이디 중복 확인 API
