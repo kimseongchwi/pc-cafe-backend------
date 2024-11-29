@@ -295,7 +295,7 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
         const userId = req.user.id;
     
         connection.query(
-            'UPDATE seats SET registerid = NULL, user_id = NULL WHERE user_id = ?',
+            'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',  // user_name도 NULL로 설정
             [userId],
             (error) => {
                 if (error) {
@@ -402,13 +402,16 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
     // 사용자 정보 조회 API
     app.get('/api/users/me', authenticateToken, (req, res) => {
         connection.query(
-            'SELECT id, registerid, name, address, role FROM users WHERE id = ?',
-            [req.user.id],
-            (error, results) => {
-                if (error || results.length === 0) {
-                    return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
-                }
-                res.json(results[0]);
+            `SELECT users.id, users.registerid, users.name, users.address, users.role, seats.number AS seatNumber
+         FROM users
+         LEFT JOIN seats ON users.id = seats.user_id
+         WHERE users.id = ?`,
+        [req.user.id],
+        (error, results) => {
+            if (error || results.length === 0) {
+                return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+            }
+            res.json(results[0]);
             }
         );
     });
