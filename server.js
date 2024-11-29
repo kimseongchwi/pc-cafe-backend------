@@ -110,21 +110,6 @@ initialConnection.connect((err) => {
                 )
             `;
 
-            const createOrdersTableQuery = `
-                CREATE TABLE IF NOT EXISTS orders (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    user_name VARCHAR(50) NOT NULL,
-                    menu_id INT NOT NULL,
-                    quantity INT NOT NULL,
-                    status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
-                    payment_method ENUM('card', 'cash') NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    FOREIGN KEY (menu_id) REFERENCES menus(id)
-                )
-            `;
-
             const createSeatsTableQuery = `
                 CREATE TABLE IF NOT EXISTS seats (
                     number INT PRIMARY KEY,
@@ -135,7 +120,25 @@ initialConnection.connect((err) => {
                 )
             `;
 
-            // 테이블 생성
+            const createOrdersTableQuery = `
+                CREATE TABLE IF NOT EXISTS orders (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    seat_number INT NOT NULL,
+                    user_id INT NOT NULL,
+                    user_name VARCHAR(50) NOT NULL,
+                    menu_id INT NOT NULL,
+                    menu_name VARCHAR(100) NOT NULL,
+                    quantity INT NOT NULL,
+                    status ENUM('pending', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
+                    payment_method ENUM('card', 'cash') NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (menu_id) REFERENCES menus(id),
+                    FOREIGN KEY (seat_number) REFERENCES seats(number)
+                )
+            `;
+
+            // 테이블 생성 순서 조정
             initialConnection.query(createUsersTableQuery, (err) => {
                 if (err) {
                     console.error('users 테이블 생성 실패:', err);
@@ -150,19 +153,19 @@ initialConnection.connect((err) => {
                     }
                     console.log('menus 테이블 생성 완료');
 
-                    initialConnection.query(createOrdersTableQuery, (err) => {
+                    initialConnection.query(createSeatsTableQuery, (err) => {
                         if (err) {
-                            console.error('orders 테이블 생성 실패:', err);
+                            console.error('seats 테이블 생성 실패:', err);
                             return;
                         }
-                        console.log('orders 테이블 생성 완료');
+                        console.log('seats 테이블 생성 완료');
 
-                        initialConnection.query(createSeatsTableQuery, (err) => {
+                        initialConnection.query(createOrdersTableQuery, (err) => {
                             if (err) {
-                                console.error('seats 테이블 생성 실패:', err);
+                                console.error('orders 테이블 생성 실패:', err);
                                 return;
                             }
-                            console.log('seats 테이블 생성 완료');
+                            console.log('orders 테이블 생성 완료');
                             initialConnection.end();
                             startApp();
                         });
@@ -190,7 +193,7 @@ function startApp() {
     });
 
     // 좌석 초기화
-    connection.query('TRUNCATE TABLE seats', (err) => {
+    connection.query('DELETE FROM seats', (err) => {
         if (err) {
             console.error('좌석 초기화 실패:', err);
             return;
@@ -507,26 +510,38 @@ function startApp() {
 
     // 주문 API 수정 (결제 방식 추가)
     app.post('/api/orders', authenticateToken, (req, res) => {
-        const { menuId, quantity, paymentMethod } = req.body;
+        const { menuId, quantity, paymentMethod, seatNumber } = req.body;
         const userId = req.user.id;
         const userName = req.user.name;
 
-        if (!menuId || !quantity || !paymentMethod) {
+        if (!menuId || !quantity || !paymentMethod || !seatNumber) {
             return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
         }
 
         connection.query(
-            'INSERT INTO orders (user_id, user_name, menu_id, quantity, payment_method) VALUES (?, ?, ?, ?, ?)',
-            [userId, userName, menuId, quantity, paymentMethod],
+            'SELECT name FROM menus WHERE id = ?',
+            [menuId],
             (error, results) => {
-                if (error) {
-                    console.error('주문 생성 실패:', error);
-                    return res.status(500).json({ message: '주문에 실패했습니다.' });
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '유효하지 않은 메뉴입니다.' });
                 }
-                res.json({
-                    id: results.insertId,
-                    message: '주문이 완료되었습니다.'
-                });
+
+                const menuName = results[0].name;
+
+                connection.query(
+                    'INSERT INTO orders (user_id, user_name, menu_id, menu_name, seat_number, quantity, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [userId, userName, menuId, menuName, seatNumber, quantity, paymentMethod],
+                    (error, results) => {
+                        if (error) {
+                            console.error('주문 생성 실패:', error);
+                            return res.status(500).json({ message: '주문에 실패했습니다.' });
+                        }
+                        res.json({
+                            id: results.insertId,
+                            message: '주문이 완료되었습니다.'
+                        });
+                    }
+                );
             }
         );
     });
@@ -534,14 +549,16 @@ function startApp() {
     // 주문 조회 API
     app.get('/api/orders', authenticateToken, (req, res) => {
         const query = req.user.role === 'admin' 
-            ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price 
+            ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
                FROM orders 
                JOIN users ON orders.user_id = users.id 
                JOIN menus ON orders.menu_id = menus.id
+               JOIN seats ON orders.seat_number = seats.number
                ORDER BY orders.created_at DESC`
-            : `SELECT orders.*, menus.name as menuName, menus.price 
+            : `SELECT orders.*, menus.name as menuName, menus.price, seats.number as seatNumber 
                FROM orders 
                JOIN menus ON orders.menu_id = menus.id 
+               JOIN seats ON orders.seat_number = seats.number
                WHERE user_id = ?
                ORDER BY orders.created_at DESC`;
 
