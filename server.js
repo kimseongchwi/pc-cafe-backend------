@@ -90,7 +90,7 @@ initialConnection.connect((err) => {
             const createUsersTableQuery = `
                 CREATE TABLE IF NOT EXISTS users (
                     id INT AUTO_INCREMENT PRIMARY KEY,
-                    username VARCHAR(50) UNIQUE NOT NULL,
+                    registerid VARCHAR(50) UNIQUE NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     name VARCHAR(50) NOT NULL,
                     address VARCHAR(255),
@@ -126,14 +126,14 @@ initialConnection.connect((err) => {
             `;
 
             const createSeatsTableQuery = `
-    CREATE TABLE IF NOT EXISTS seats (
-        number INT PRIMARY KEY,
-        username VARCHAR(50),
-        user_id INT,
-        user_name VARCHAR(50),
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-`
+                CREATE TABLE IF NOT EXISTS seats (
+                    number INT PRIMARY KEY,
+                    registerid VARCHAR(50),
+                    user_id INT,
+                    user_name VARCHAR(50),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            `;
 
             // 테이블 생성
             initialConnection.query(createUsersTableQuery, (err) => {
@@ -197,7 +197,7 @@ function startApp() {
         }
 
         const insertSeatsQuery = `
-            INSERT INTO seats (number, username, user_id) VALUES
+            INSERT INTO seats (number, registerid, user_id) VALUES
             (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
             (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
             (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
@@ -215,76 +215,76 @@ function startApp() {
 
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
-    connection.query('SELECT * FROM seats', (error, results) => {
-        if (error) {
-            console.error('좌석 정보 조회 실패:', error);
-            return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
-        }
-        res.json(results);
+        connection.query('SELECT * FROM seats', (error, results) => {
+            if (error) {
+                console.error('좌석 정보 조회 실패:', error);
+                return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+            }
+            res.json(results);
+        });
     });
-});
 
     // 로그인 시 좌석 업데이트
-app.post('/api/auth/login', async (req, res) => {
-    const { username, password, seatNumber } = req.body;
+    app.post('/api/auth/login', async (req, res) => {
+        const { registerid, password, seatNumber } = req.body;
 
-    connection.query(
-        'SELECT * FROM users WHERE username = ?',
-        [username],
-        async (error, results) => {
-            if (error || results.length === 0) {
-                return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-            }
-
-            const user = results[0];
-            const validPassword = await bcrypt.compare(password, user.password);
-            
-            if (!validPassword) {
-                return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-            }
-
-            const token = jwt.sign(
-                { 
-                    id: user.id, 
-                    username: user.username, 
-                    name: user.name,
-                    role: user.role 
-                },
-                JWT_SECRET,
-                { expiresIn: '24h' }
-            );
-
-            // 좌석 업데이트 (관리자가 아닌 경우에만)
-            if (seatNumber && user.role !== 'admin') {
-                connection.query(
-                    'UPDATE seats SET username = ?, user_id = ?, user_name = ? WHERE number = ?',
-                    [user.username, user.id, user.name, seatNumber],
-                    (error) => {
-                        if (error) {
-                            console.error('좌석 업데이트 실패:', error);
-                        }
-                    }
-                );
-            }
-
-            res.json({
-                token,
-                user: {
-                    id: user.id,
-                    username: user.username,
-                    name: user.name,
-                    role: user.role
+        connection.query(
+            'SELECT * FROM users WHERE registerid = ?',
+            [registerid],
+            async (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
                 }
-            });
-        }
-    );
-});
+
+                const user = results[0];
+                const validPassword = await bcrypt.compare(password, user.password);
+                
+                if (!validPassword) {
+                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+                }
+
+                const token = jwt.sign(
+                    { 
+                        id: user.id, 
+                        registerid: user.registerid, 
+                        name: user.name,
+                        role: user.role 
+                    },
+                    JWT_SECRET,
+                    { expiresIn: '24h' }
+                );
+
+                // 좌석 업데이트 (관리자가 아닌 경우에만)
+                if (seatNumber && user.role !== 'admin') {
+                    connection.query(
+                        'UPDATE seats SET registerid = ?, user_id = ?, user_name = ? WHERE number = ?',
+                        [user.registerid, user.id, user.name, seatNumber],
+                        (error) => {
+                            if (error) {
+                                console.error('좌석 업데이트 실패:', error);
+                            }
+                        }
+                    );
+                }
+
+                res.json({
+                    token,
+                    user: {
+                        id: user.id,
+                        registerid: user.registerid,
+                        name: user.name,
+                        role: user.role
+                    }
+                });
+            }
+        );
+    });
 
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
     
         connection.query(
-            'UPDATE seats SET username = NULL, user_id = NULL WHERE user_id = ?',
+            'UPDATE seats SET registerid = NULL, user_id = NULL WHERE user_id = ?',
             [userId],
             (error) => {
                 if (error) {
@@ -297,12 +297,12 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
     // 아이디 중복 확인 API
-    app.get('/api/auth/check-username/:username', (req, res) => {
-        const { username } = req.params;
+    app.get('/api/auth/check-registerid/:registerid', (req, res) => {
+        const { registerid } = req.params;
         
         connection.query(
-            'SELECT id FROM users WHERE username = ?',
-            [username],
+            'SELECT id FROM users WHERE registerid = ?',
+            [registerid],
             (error, results) => {
                 if (error) {
                     return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
@@ -314,9 +314,9 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 회원가입 API
     app.post('/api/auth/register', async (req, res) => {
-        const { username, password, name, address, role, adminCode } = req.body;
+        const { registerid, password, name, address, role, adminCode } = req.body;
 
-        if (!username || !password || !name) {
+        if (!registerid || !password || !name) {
             return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
         }
 
@@ -328,8 +328,8 @@ app.post('/api/auth/login', async (req, res) => {
             const hashedPassword = await bcrypt.hash(password, 10);
             
             connection.query(
-                'INSERT INTO users (username, password, name, address, role) VALUES (?, ?, ?, ?, ?)',
-                [username, hashedPassword, name, address || null, role],
+                'INSERT INTO users (registerid, password, name, address, role) VALUES (?, ?, ?, ?, ?)',
+                [registerid, hashedPassword, name, address || null, role],
                 (error) => {
                     if (error) {
                         if (error.code === 'ER_DUP_ENTRY') {
@@ -347,11 +347,11 @@ app.post('/api/auth/login', async (req, res) => {
 
     // 로그인 API
     app.post('/api/auth/login', async (req, res) => {
-        const { username, password } = req.body;
+        const { registerid, password } = req.body;
 
         connection.query(
-            'SELECT * FROM users WHERE username = ?',
-            [username],
+            'SELECT * FROM users WHERE registerid = ?',
+            [registerid],
             async (error, results) => {
                 if (error || results.length === 0) {
                     return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
@@ -367,7 +367,7 @@ app.post('/api/auth/login', async (req, res) => {
                 const token = jwt.sign(
                     { 
                         id: user.id, 
-                        username: user.username, 
+                        registerid: user.registerid, 
                         name: user.name,
                         role: user.role 
                     },
@@ -379,7 +379,7 @@ app.post('/api/auth/login', async (req, res) => {
                     token,
                     user: {
                         id: user.id,
-                        username: user.username,
+                        registerid: user.registerid,
                         name: user.name,
                         role: user.role
                     }
@@ -391,7 +391,7 @@ app.post('/api/auth/login', async (req, res) => {
     // 사용자 정보 조회 API
     app.get('/api/users/me', authenticateToken, (req, res) => {
         connection.query(
-            'SELECT id, username, name, address, role FROM users WHERE id = ?',
+            'SELECT id, registerid, name, address, role FROM users WHERE id = ?',
             [req.user.id],
             (error, results) => {
                 if (error || results.length === 0) {
@@ -504,80 +504,81 @@ app.post('/api/auth/login', async (req, res) => {
             });
         });
     });
+
     // 주문 API 수정 (결제 방식 추가)
-app.post('/api/orders', authenticateToken, (req, res) => {
-    const { menuId, quantity, paymentMethod } = req.body;
-    const userId = req.user.id;
-    const userName = req.user.name;
+    app.post('/api/orders', authenticateToken, (req, res) => {
+        const { menuId, quantity, paymentMethod } = req.body;
+        const userId = req.user.id;
+        const userName = req.user.name;
 
-    if (!menuId || !quantity || !paymentMethod) {
-        return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
-    }
+        if (!menuId || !quantity || !paymentMethod) {
+            return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
+        }
 
-    connection.query(
-        'INSERT INTO orders (user_id, user_name, menu_id, quantity, payment_method) VALUES (?, ?, ?, ?, ?)',
-        [userId, userName, menuId, quantity, paymentMethod],
-        (error, results) => {
-            if (error) {
-                console.error('주문 생성 실패:', error);
-                return res.status(500).json({ message: '주문에 실패했습니다.' });
+        connection.query(
+            'INSERT INTO orders (user_id, user_name, menu_id, quantity, payment_method) VALUES (?, ?, ?, ?, ?)',
+            [userId, userName, menuId, quantity, paymentMethod],
+            (error, results) => {
+                if (error) {
+                    console.error('주문 생성 실패:', error);
+                    return res.status(500).json({ message: '주문에 실패했습니다.' });
+                }
+                res.json({
+                    id: results.insertId,
+                    message: '주문이 완료되었습니다.'
+                });
             }
-            res.json({
-                id: results.insertId,
-                message: '주문이 완료되었습니다.'
-            });
-        }
-    );
-});
-
-// 주문 조회 API
-app.get('/api/orders', authenticateToken, (req, res) => {
-    const query = req.user.role === 'admin' 
-        ? `SELECT orders.*, users.username, users.name as userName, menus.name as menuName, menus.price 
-           FROM orders 
-           JOIN users ON orders.user_id = users.id 
-           JOIN menus ON orders.menu_id = menus.id
-           ORDER BY orders.created_at DESC`
-        : `SELECT orders.*, menus.name as menuName, menus.price 
-           FROM orders 
-           JOIN menus ON orders.menu_id = menus.id 
-           WHERE user_id = ?
-           ORDER BY orders.created_at DESC`;
-
-    const params = req.user.role === 'admin' ? [] : [req.user.id];
-
-    connection.query(query, params, (error, results) => {
-        if (error) {
-            console.error('주문 조회 실패:', error);
-            return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
-        }
-        res.json(results);
+        );
     });
-});
 
-// 주문 상태 변경 API
-app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
-    const { id } = req.params;
-    const { status } = req.body;
+    // 주문 조회 API
+    app.get('/api/orders', authenticateToken, (req, res) => {
+        const query = req.user.role === 'admin' 
+            ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price 
+               FROM orders 
+               JOIN users ON orders.user_id = users.id 
+               JOIN menus ON orders.menu_id = menus.id
+               ORDER BY orders.created_at DESC`
+            : `SELECT orders.*, menus.name as menuName, menus.price 
+               FROM orders 
+               JOIN menus ON orders.menu_id = menus.id 
+               WHERE user_id = ?
+               ORDER BY orders.created_at DESC`;
 
-    connection.query(
-        'UPDATE orders SET status = ? WHERE id = ?',
-        [status, id],
-        (error) => {
+        const params = req.user.role === 'admin' ? [] : [req.user.id];
+
+        connection.query(query, params, (error, results) => {
             if (error) {
-                console.error('주문 상태 업데이트 실패:', error);
-                return res.status(500).json({ message: '주문 상태 변경에 실패했습니다.' });
+                console.error('주문 조회 실패:', error);
+                return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
             }
-            res.json({ 
-                success: true,
-                message: '주문 상태가 변경되었습니다.'
-            });
-        }
-    );
-});
+            res.json(results);
+        });
+    });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-    console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
-});
+    // 주문 상태 변경 API
+    app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        connection.query(
+            'UPDATE orders SET status = ? WHERE id = ?',
+            [status, id],
+            (error) => {
+                if (error) {
+                    console.error('주문 상태 업데이트 실패:', error);
+                    return res.status(500).json({ message: '주문 상태 변경에 실패했습니다.' });
+                }
+                res.json({ 
+                    success: true,
+                    message: '주문 상태가 변경되었습니다.'
+                });
+            }
+        );
+    });
+
+    const PORT = 3000;
+    app.listen(PORT, () => {
+        console.log(`서버가 http://localhost:${PORT} 에서 실행 중입니다.`);
+    });
 }
