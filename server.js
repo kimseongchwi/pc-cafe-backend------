@@ -126,13 +126,14 @@ initialConnection.connect((err) => {
             `;
 
             const createSeatsTableQuery = `
-            CREATE TABLE IF NOT EXISTS seats (
-                number INT PRIMARY KEY,
-                username VARCHAR(50),
-                user_id INT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        `;
+    CREATE TABLE IF NOT EXISTS seats (
+        number INT PRIMARY KEY,
+        username VARCHAR(50),
+        user_id INT,
+        user_name VARCHAR(50),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+`
 
             // 테이블 생성
             initialConnection.query(createUsersTableQuery, (err) => {
@@ -214,70 +215,70 @@ function startApp() {
 
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
-        connection.query('SELECT * FROM seats', (error, results) => {
-            if (error) {
-                console.error('좌석 정보 조회 실패:', error);
-                return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
-            }
-            res.json(results);
-        });
+    connection.query('SELECT * FROM seats', (error, results) => {
+        if (error) {
+            console.error('좌석 정보 조회 실패:', error);
+            return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+        }
+        res.json(results);
     });
+});
 
     // 로그인 시 좌석 업데이트
-    app.post('/api/auth/login', async (req, res) => {
-        const { username, password, seatNumber } = req.body;
-    
-        connection.query(
-            'SELECT * FROM users WHERE username = ?',
-            [username],
-            async (error, results) => {
-                if (error || results.length === 0) {
-                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-                }
-    
-                const user = results[0];
-                const validPassword = await bcrypt.compare(password, user.password);
-                
-                if (!validPassword) {
-                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-                }
-    
-                const token = jwt.sign(
-                    { 
-                        id: user.id, 
-                        username: user.username, 
-                        name: user.name,
-                        role: user.role 
-                    },
-                    JWT_SECRET,
-                    { expiresIn: '24h' }
-                );
-    
-                 // 좌석 업데이트 (관리자가 아닌 경우에만)
-                 if (seatNumber && user.role !== 'admin') {
-                    connection.query(
-                        'UPDATE seats SET username = ?, user_id = ? WHERE number = ?',
-                        [user.name, user.id, seatNumber],
-                        (error) => {
-                            if (error) {
-                                console.error('좌석 업데이트 실패:', error);
-                            }
-                        }
-                    );
-                }
-    
-                res.json({
-                    token,
-                    user: {
-                        id: user.id,
-                        username: user.username,
-                        name: user.name,
-                        role: user.role
-                    }
-                });
+app.post('/api/auth/login', async (req, res) => {
+    const { username, password, seatNumber } = req.body;
+
+    connection.query(
+        'SELECT * FROM users WHERE username = ?',
+        [username],
+        async (error, results) => {
+            if (error || results.length === 0) {
+                return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
             }
-        );
-    });
+
+            const user = results[0];
+            const validPassword = await bcrypt.compare(password, user.password);
+            
+            if (!validPassword) {
+                return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+            }
+
+            const token = jwt.sign(
+                { 
+                    id: user.id, 
+                    username: user.username, 
+                    name: user.name,
+                    role: user.role 
+                },
+                JWT_SECRET,
+                { expiresIn: '24h' }
+            );
+
+            // 좌석 업데이트 (관리자가 아닌 경우에만)
+            if (seatNumber && user.role !== 'admin') {
+                connection.query(
+                    'UPDATE seats SET username = ?, user_id = ?, user_name = ? WHERE number = ?',
+                    [user.username, user.id, user.name, seatNumber],
+                    (error) => {
+                        if (error) {
+                            console.error('좌석 업데이트 실패:', error);
+                        }
+                    }
+                );
+            }
+
+            res.json({
+                token,
+                user: {
+                    id: user.id,
+                    username: user.username,
+                    name: user.name,
+                    role: user.role
+                }
+            });
+        }
+    );
+});
 
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
