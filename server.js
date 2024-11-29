@@ -193,7 +193,14 @@ function startApp() {
     });
 
     // 좌석 초기화
-    connection.query('DELETE FROM seats', (err) => {
+    // 좌석 초기화
+connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의 데이터를 삭제
+    if (err) {
+        console.error('주문 데이터 초기화 실패:', err);
+        return;
+    }
+
+    connection.query('DELETE FROM seats', (err) => {  // 그 다음 seats 테이블 초기화
         if (err) {
             console.error('좌석 초기화 실패:', err);
             return;
@@ -215,6 +222,7 @@ function startApp() {
             }
         });
     });
+});
 
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
@@ -547,31 +555,32 @@ function startApp() {
     });
 
     // 주문 조회 API
-    app.get('/api/orders', authenticateToken, (req, res) => {
-        const query = req.user.role === 'admin' 
-            ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
-               FROM orders 
-               JOIN users ON orders.user_id = users.id 
-               JOIN menus ON orders.menu_id = menus.id
-               JOIN seats ON orders.seat_number = seats.number
-               ORDER BY orders.created_at DESC`
-            : `SELECT orders.*, menus.name as menuName, menus.price, seats.number as seatNumber 
-               FROM orders 
-               JOIN menus ON orders.menu_id = menus.id 
-               JOIN seats ON orders.seat_number = seats.number
-               WHERE user_id = ?
-               ORDER BY orders.created_at DESC`;
+    // 주문 조회 API
+app.get('/api/orders', authenticateToken, (req, res) => {
+    const query = req.user.role === 'admin' 
+        ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
+           FROM orders 
+           JOIN users ON orders.user_id = users.id 
+           JOIN menus ON orders.menu_id = menus.id
+           JOIN seats ON orders.seat_number = seats.number
+           ORDER BY orders.created_at DESC`
+        : `SELECT orders.*, menus.name as menuName, menus.price, seats.number as seatNumber 
+           FROM orders 
+           JOIN menus ON orders.menu_id = menus.id 
+           JOIN seats ON orders.seat_number = seats.number
+           WHERE orders.user_id = ?  /* orders.user_id로 명확하게 지정 */
+           ORDER BY orders.created_at DESC`;
 
-        const params = req.user.role === 'admin' ? [] : [req.user.id];
+    const params = req.user.role === 'admin' ? [] : [req.user.id];
 
-        connection.query(query, params, (error, results) => {
-            if (error) {
-                console.error('주문 조회 실패:', error);
-                return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
-            }
-            res.json(results);
-        });
+    connection.query(query, params, (error, results) => {
+        if (error) {
+            console.error('주문 조회 실패:', error);
+            return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
+        }
+        res.json(results);
     });
+});
 
     // 주문 상태 변경 API
     app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
