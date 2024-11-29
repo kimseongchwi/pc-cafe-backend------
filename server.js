@@ -125,6 +125,15 @@ initialConnection.connect((err) => {
                 )
             `;
 
+            const createSeatsTableQuery = `
+            CREATE TABLE IF NOT EXISTS seats (
+                number INT PRIMARY KEY,
+                username VARCHAR(50),
+                user_id INT,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        `;
+
             // 테이블 생성
             initialConnection.query(createUsersTableQuery, (err) => {
                 if (err) {
@@ -146,8 +155,16 @@ initialConnection.connect((err) => {
                             return;
                         }
                         console.log('orders 테이블 생성 완료');
-                        initialConnection.end();
-                        startApp();
+
+                        initialConnection.query(createSeatsTableQuery, (err) => {
+                            if (err) {
+                                console.error('seats 테이블 생성 실패:', err);
+                                return;
+                            }
+                            console.log('seats 테이블 생성 완료');
+                            initialConnection.end();
+                            startApp();
+                        });
                     });
                 });
             });
@@ -169,6 +186,113 @@ function startApp() {
             return;
         }
         console.log('DB 연결 성공');
+    });
+
+    // 좌석 초기화
+    connection.query('TRUNCATE TABLE seats', (err) => {
+        if (err) {
+            console.error('좌석 초기화 실패:', err);
+            return;
+        }
+
+        const insertSeatsQuery = `
+            INSERT INTO seats (number, username, user_id) VALUES
+            (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
+            (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
+            (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
+            (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL);
+        `;
+
+        connection.query(insertSeatsQuery, (err) => {
+            if (err) {
+                console.error('좌석 삽입 실패:', err);
+            } else {
+                console.log('좌석 초기화 완료');
+            }
+        });
+    });
+
+    // 좌석 정보 조회 API
+    app.get('/api/seats', (req, res) => {
+        connection.query('SELECT * FROM seats', (error, results) => {
+            if (error) {
+                console.error('좌석 정보 조회 실패:', error);
+                return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+            }
+            res.json(results);
+        });
+    });
+
+    // 로그인 시 좌석 업데이트
+    app.post('/api/auth/login', async (req, res) => {
+        const { username, password, seatNumber } = req.body;
+    
+        connection.query(
+            'SELECT * FROM users WHERE username = ?',
+            [username],
+            async (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+                }
+    
+                const user = results[0];
+                const validPassword = await bcrypt.compare(password, user.password);
+                
+                if (!validPassword) {
+                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
+                }
+    
+                const token = jwt.sign(
+                    { 
+                        id: user.id, 
+                        username: user.username, 
+                        name: user.name,
+                        role: user.role 
+                    },
+                    JWT_SECRET,
+                    { expiresIn: '24h' }
+                );
+    
+                 // 좌석 업데이트 (관리자가 아닌 경우에만)
+                 if (seatNumber && user.role !== 'admin') {
+                    connection.query(
+                        'UPDATE seats SET username = ?, user_id = ? WHERE number = ?',
+                        [user.name, user.id, seatNumber],
+                        (error) => {
+                            if (error) {
+                                console.error('좌석 업데이트 실패:', error);
+                            }
+                        }
+                    );
+                }
+    
+                res.json({
+                    token,
+                    user: {
+                        id: user.id,
+                        username: user.username,
+                        name: user.name,
+                        role: user.role
+                    }
+                });
+            }
+        );
+    });
+
+    app.post('/api/auth/logout', authenticateToken, (req, res) => {
+        const userId = req.user.id;
+    
+        connection.query(
+            'UPDATE seats SET username = NULL, user_id = NULL WHERE user_id = ?',
+            [userId],
+            (error) => {
+                if (error) {
+                    console.error('좌석 정보 초기화 실패:', error);
+                    return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
+                }
+                res.json({ message: '로그아웃이 완료되었습니다.' });
+            }
+        );
     });
 
     // 아이디 중복 확인 API
