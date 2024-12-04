@@ -95,6 +95,7 @@ initialConnection.connect((err) => {
                     name VARCHAR(50) NOT NULL,
                     address VARCHAR(255),
                     role ENUM('user', 'admin') NOT NULL,
+                    available_time INT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `;
@@ -193,36 +194,35 @@ function startApp() {
     });
 
     // 좌석 초기화
-    // 좌석 초기화
-connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의 데이터를 삭제
-    if (err) {
-        console.error('주문 데이터 초기화 실패:', err);
-        return;
-    }
-
-    connection.query('DELETE FROM seats', (err) => {  // 그 다음 seats 테이블 초기화
+    connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의 데이터를 삭제
         if (err) {
-            console.error('좌석 초기화 실패:', err);
+            console.error('주문 데이터 초기화 실패:', err);
             return;
         }
 
-        const insertSeatsQuery = `
-            INSERT INTO seats (number, registerid, user_id) VALUES
-            (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
-            (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
-            (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
-            (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL);
-        `;
-
-        connection.query(insertSeatsQuery, (err) => {
+        connection.query('DELETE FROM seats', (err) => {  // 그 다음 seats 테이블 초기화
             if (err) {
-                console.error('좌석 삽입 실패:', err);
-            } else {
-                console.log('좌석 초기화 완료');
+                console.error('좌석 초기화 실패:', err);
+                return;
             }
+
+            const insertSeatsQuery = `
+                INSERT INTO seats (number, registerid, user_id) VALUES
+                (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
+                (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
+                (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
+                (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL);
+            `;
+
+            connection.query(insertSeatsQuery, (err) => {
+                if (err) {
+                    console.error('좌석 삽입 실패:', err);
+                } else {
+                    console.log('좌석 초기화 완료');
+                }
+            });
         });
     });
-});
 
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
@@ -284,28 +284,47 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
                         id: user.id,
                         registerid: user.registerid,
                         name: user.name,
-                        role: user.role
+                        role: user.role,
+                        available_time: user.available_time
                     }
                 });
             }
         );
     });
 
-    app.post('/api/auth/logout', authenticateToken, (req, res) => {
-        const userId = req.user.id;
-    
-        connection.query(
-            'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',  // user_name도 NULL로 설정
-            [userId],
-            (error) => {
-                if (error) {
-                    console.error('좌석 정보 초기화 실패:', error);
-                    return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
-                }
-                res.json({ message: '로그아웃이 완료되었습니다.' });
+    // ... 기존 코드 ...
+
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    const remainingTime = req.body.remainingTime; // 클라이언트에서 남은 시간을 받아옴
+
+    // 남은 시간 저장
+    connection.query(
+        'UPDATE users SET available_time = ? WHERE id = ?',
+        [remainingTime, userId],
+        (error) => {
+            if (error) {
+                console.error('남은 시간 저장 실패:', error);
+                return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
             }
-        );
-    });
+
+            // 좌석 정보 초기화
+            connection.query(
+                'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',
+                [userId],
+                (error) => {
+                    if (error) {
+                        console.error('좌석 정보 초기화 실패:', error);
+                        return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
+                    }
+                    res.json({ message: '로그아웃이 완료되었습니다.' });
+                }
+            );
+        }
+    );
+});
+
+// ... 기존 코드 ...
 
     // 아이디 중복 확인 API
     app.get('/api/auth/check-registerid/:registerid', (req, res) => {
@@ -356,53 +375,10 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
         }
     });
 
-    // 로그인 API
-    app.post('/api/auth/login', async (req, res) => {
-        const { registerid, password } = req.body;
-
-        connection.query(
-            'SELECT * FROM users WHERE registerid = ?',
-            [registerid],
-            async (error, results) => {
-                if (error || results.length === 0) {
-                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-                }
-
-                const user = results[0];
-                const validPassword = await bcrypt.compare(password, user.password);
-                
-                if (!validPassword) {
-                    return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
-                }
-
-                const token = jwt.sign(
-                    { 
-                        id: user.id, 
-                        registerid: user.registerid, 
-                        name: user.name,
-                        role: user.role 
-                    },
-                    JWT_SECRET,
-                    { expiresIn: '24h' }
-                );
-
-                res.json({
-                    token,
-                    user: {
-                        id: user.id,
-                        registerid: user.registerid,
-                        name: user.name,
-                        role: user.role
-                    }
-                });
-            }
-        );
-    });
-
     // 사용자 정보 조회 API
     app.get('/api/users/me', authenticateToken, (req, res) => {
         connection.query(
-            `SELECT users.id, users.registerid, users.name, users.address, users.role, seats.number AS seatNumber
+            `SELECT users.id, users.registerid, users.name, users.address, users.role, users.available_time, seats.number AS seatNumber
          FROM users
          LEFT JOIN seats ON users.id = seats.user_id
          WHERE users.id = ?`,
@@ -415,6 +391,43 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
             }
         );
     });
+
+    // 시간 충전 API
+    app.post('/api/time-charge', authenticateToken, (req, res) => {
+        const { hours, paymentMethod } = req.body;
+        const userId = req.user.id;
+
+        const timeOptions = {
+            1: 3600,    // 1시간 = 3600초
+        2: 7200,    // 2시간 = 7200초
+        3: 10800,   // 3시간 = 10800초
+        5: 18000,   // 5시간 = 18000초
+        10: 36000,  // 10시간 = 36000초
+        50: 180000, // 50시간 = 180000초
+        100: 360000 // 100시간 = 360000초
+        };
+
+        const additionalTime = timeOptions[hours];
+
+    if (!additionalTime) {
+        return res.status(400).json({ message: '유효하지 않은 시간 선택입니다.' });
+    }
+
+    // 결제 방식에 대한 로직 추가 가능 (예: 결제 API 호출)
+
+    connection.query(
+        'UPDATE users SET available_time = available_time + ? WHERE id = ?',
+        [additionalTime, userId],
+        (error) => {
+            if (error) {
+                console.error('시간 충전 실패:', error);
+                return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
+            }
+            res.json({ message: `시간 충전이 완료되었습니다.` });
+        }
+    );
+});
+    
 
     // 메뉴 관련 API
     app.get('/api/menus', authenticateToken, (req, res) => {
@@ -558,32 +571,31 @@ connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의
     });
 
     // 주문 조회 API
-    // 주문 조회 API
-app.get('/api/orders', authenticateToken, (req, res) => {
-    const query = req.user.role === 'admin' 
-        ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
-           FROM orders 
-           JOIN users ON orders.user_id = users.id 
-           JOIN menus ON orders.menu_id = menus.id
-           JOIN seats ON orders.seat_number = seats.number
-           ORDER BY orders.created_at DESC`
-        : `SELECT orders.*, menus.name as menuName, menus.price, seats.number as seatNumber 
-           FROM orders 
-           JOIN menus ON orders.menu_id = menus.id 
-           JOIN seats ON orders.seat_number = seats.number
-           WHERE orders.user_id = ?  /* orders.user_id로 명확하게 지정 */
-           ORDER BY orders.created_at DESC`;
+    app.get('/api/orders', authenticateToken, (req, res) => {
+        const query = req.user.role === 'admin' 
+            ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
+               FROM orders 
+               JOIN users ON orders.user_id = users.id 
+               JOIN menus ON orders.menu_id = menus.id
+               JOIN seats ON orders.seat_number = seats.number
+               ORDER BY orders.created_at DESC`
+            : `SELECT orders.*, menus.name as menuName, menus.price, seats.number as seatNumber 
+               FROM orders 
+               JOIN menus ON orders.menu_id = menus.id 
+               JOIN seats ON orders.seat_number = seats.number
+               WHERE orders.user_id = ?  /* orders.user_id로 명확하게 지정 */
+               ORDER BY orders.created_at DESC`;
 
-    const params = req.user.role === 'admin' ? [] : [req.user.id];
+        const params = req.user.role === 'admin' ? [] : [req.user.id];
 
-    connection.query(query, params, (error, results) => {
-        if (error) {
-            console.error('주문 조회 실패:', error);
-            return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
-        }
-        res.json(results);
+        connection.query(query, params, (error, results) => {
+            if (error) {
+                console.error('주문 조회 실패:', error);
+                return res.status(500).json({ message: '주문 조회에 실패했습니다.' });
+            }
+            res.json(results);
+        });
     });
-});
 
     // 주문 상태 변경 API
     app.put('/api/orders/:id', authenticateToken, isAdmin, (req, res) => {
