@@ -17,7 +17,7 @@ app.use(express.json());
 
 // 이미지 업로드 설정
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)){
+if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir);
 }
 
@@ -207,12 +207,13 @@ function startApp() {
             }
 
             const insertSeatsQuery = `
-                INSERT INTO seats (number, registerid, user_id) VALUES
-                (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
-                (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
-                (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
-                (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL);
-            `;
+    INSERT INTO seats (number, registerid, user_id) VALUES
+    (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
+    (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
+    (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
+    (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL),
+    (21, NULL, NULL);
+`;
 
             connection.query(insertSeatsQuery, (err) => {
                 if (err) {
@@ -369,17 +370,17 @@ function startApp() {
 
                 const user = results[0];
                 const validPassword = await bcrypt.compare(password, user.password);
-                
+
                 if (!validPassword) {
                     return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
                 }
 
                 const token = jwt.sign(
-                    { 
-                        id: user.id, 
-                        registerid: user.registerid, 
+                    {
+                        id: user.id,
+                        registerid: user.registerid,
                         name: user.name,
-                        role: user.role 
+                        role: user.role
                     },
                     JWT_SECRET,
                     { expiresIn: '24h' }
@@ -445,7 +446,7 @@ function startApp() {
     // 아이디 중복 확인 API
     app.get('/api/auth/check-registerid/:registerid', (req, res) => {
         const { registerid } = req.params;
-        
+
         connection.query(
             'SELECT id FROM users WHERE registerid = ?',
             [registerid],
@@ -472,7 +473,7 @@ function startApp() {
 
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
-            
+
             connection.query(
                 'INSERT INTO users (registerid, password, name, address, role) VALUES (?, ?, ?, ?, ?)',
                 [registerid, hashedPassword, name, address || null, role],
@@ -609,21 +610,21 @@ function startApp() {
 
     app.delete('/api/menus/:id', authenticateToken, isAdmin, (req, res) => {
         const { id } = req.params;
-    
+
         // 1. 연관된 주문 데이터 삭제
         connection.query('DELETE FROM orders WHERE menu_id = ?', [id], (error) => {
             if (error) {
                 console.error('주문 데이터 삭제 실패:', error);
                 return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
             }
-    
+
             // 2. 이미지 파일 삭제
             connection.query('SELECT image_path FROM menus WHERE id = ?', [id], (error, results) => {
                 if (error) {
                     console.error('메뉴 조회 실패:', error);
                     return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
                 }
-    
+
                 const menu = results[0];
                 if (menu && menu.image_path) {
                     try {
@@ -632,7 +633,7 @@ function startApp() {
                         console.error('이미지 파일 삭제 실패:', err);
                     }
                 }
-    
+
                 // 3. 메뉴 데이터 삭제
                 connection.query('DELETE FROM menus WHERE id = ?', [id], (error) => {
                     if (error) {
@@ -685,7 +686,7 @@ function startApp() {
 
     // 주문 조회 API
     app.get('/api/orders', authenticateToken, (req, res) => {
-        const query = req.user.role === 'admin' 
+        const query = req.user.role === 'admin'
             ? `SELECT orders.*, users.registerid, users.name as userName, menus.name as menuName, menus.price, seats.number as seatNumber 
                FROM orders 
                JOIN users ON orders.user_id = users.id 
@@ -723,7 +724,7 @@ function startApp() {
                     console.error('주문 상태 업데이트 실패:', error);
                     return res.status(500).json({ message: '주문 상태 변경에 실패했습니다.' });
                 }
-                res.json({ 
+                res.json({
                     success: true,
                     message: '주문 상태가 변경되었습니다.'
                 });
