@@ -226,13 +226,133 @@ function startApp() {
 
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
-        connection.query('SELECT * FROM seats', (error, results) => {
-            if (error) {
-                console.error('좌석 정보 조회 실패:', error);
-                return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+        connection.query(
+            `SELECT seats.*, users.available_time 
+             FROM seats 
+             LEFT JOIN users ON seats.user_id = users.id`,
+            (error, results) => {
+                if (error) {
+                    console.error('좌석 정보 조회 실패:', error);
+                    return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+                }
+                res.json(results);
             }
-            res.json(results);
-        });
+        );
+    });
+
+    // 관리자용 좌석 정보 조회 API
+    app.get('/api/admin/seats', authenticateToken, isAdmin, (req, res) => {
+        connection.query(
+            `SELECT seats.*, users.available_time 
+             FROM seats 
+             LEFT JOIN users ON seats.user_id = users.id`,
+            (error, results) => {
+                if (error) {
+                    console.error('좌석 정보 조회 실패:', error);
+                    return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
+                }
+                res.json(results);
+            }
+        );
+    });
+
+    // 강제 로그아웃 API
+    app.post('/api/admin/force-logout/:seatNumber', authenticateToken, isAdmin, (req, res) => {
+        const { seatNumber } = req.params;
+
+        connection.query(
+            'SELECT user_id FROM seats WHERE number = ?',
+            [seatNumber],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
+                }
+
+                const userId = results[0].user_id;
+                if (!userId) {
+                    return res.status(400).json({ message: '이미 비어있는 좌석입니다.' });
+                }
+
+                connection.query(
+                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE number = ?',
+                    [seatNumber],
+                    (error) => {
+                        if (error) {
+                            return res.status(500).json({ message: '강제 로그아웃에 실패했습니다.' });
+                        }
+                        res.json({ success: true });
+                    }
+                );
+            }
+        );
+    });
+
+    // 시간 충전 API (관리자용)
+    app.post('/api/admin/charge-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
+        const { seatNumber } = req.params;
+        const { hours } = req.body;
+
+        const additionalTime = hours * 3600; // 시간을 초로 변환
+
+        connection.query(
+            'SELECT user_id FROM seats WHERE number = ?',
+            [seatNumber],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
+                }
+
+                const userId = results[0].user_id;
+                if (!userId) {
+                    return res.status(400).json({ message: '빈 좌석입니다.' });
+                }
+
+                connection.query(
+                    'UPDATE users SET available_time = available_time + ? WHERE id = ?',
+                    [additionalTime, userId],
+                    (error) => {
+                        if (error) {
+                            return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
+                        }
+                        res.json({ success: true });
+                    }
+                );
+            }
+        );
+    });
+
+    // 시간 제거 API
+    app.post('/api/admin/remove-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
+        const { seatNumber } = req.params;
+        const { minutes } = req.body;
+
+        const removeTime = minutes * 60; // 분을 초로 변환
+
+        connection.query(
+            'SELECT user_id FROM seats WHERE number = ?',
+            [seatNumber],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
+                }
+
+                const userId = results[0].user_id;
+                if (!userId) {
+                    return res.status(400).json({ message: '빈 좌석입니다.' });
+                }
+
+                connection.query(
+                    'UPDATE users SET available_time = GREATEST(0, available_time - ?) WHERE id = ?',
+                    [removeTime, userId],
+                    (error) => {
+                        if (error) {
+                            return res.status(500).json({ message: '시간 제거에 실패했습니다.' });
+                        }
+                        res.json({ success: true });
+                    }
+                );
+            }
+        );
     });
 
     // 로그인 시 좌석 업데이트
@@ -292,39 +412,35 @@ function startApp() {
         );
     });
 
-    // ... 기존 코드 ...
+    app.post('/api/auth/logout', authenticateToken, (req, res) => {
+        const userId = req.user.id;
+        const remainingTime = req.body.remainingTime;
 
-app.post('/api/auth/logout', authenticateToken, (req, res) => {
-    const userId = req.user.id;
-    const remainingTime = req.body.remainingTime; // 클라이언트에서 남은 시간을 받아옴
-
-    // 남은 시간 저장
-    connection.query(
-        'UPDATE users SET available_time = ? WHERE id = ?',
-        [remainingTime, userId],
-        (error) => {
-            if (error) {
-                console.error('남은 시간 저장 실패:', error);
-                return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
-            }
-
-            // 좌석 정보 초기화
-            connection.query(
-                'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',
-                [userId],
-                (error) => {
-                    if (error) {
-                        console.error('좌석 정보 초기화 실패:', error);
-                        return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
-                    }
-                    res.json({ message: '로그아웃이 완료되었습니다.' });
+        // 남은 시간 저장
+        connection.query(
+            'UPDATE users SET available_time = ? WHERE id = ?',
+            [remainingTime, userId],
+            (error) => {
+                if (error) {
+                    console.error('남은 시간 저장 실패:', error);
+                    return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
                 }
-            );
-        }
-    );
-});
 
-// ... 기존 코드 ...
+                // 좌석 정보 초기화
+                connection.query(
+                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',
+                    [userId],
+                    (error) => {
+                        if (error) {
+                            console.error('좌석 정보 초기화 실패:', error);
+                            return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
+                        }
+                        res.json({ message: '로그아웃이 완료되었습니다.' });
+                    }
+                );
+            }
+        );
+    });
 
     // 아이디 중복 확인 API
     app.get('/api/auth/check-registerid/:registerid', (req, res) => {
@@ -379,15 +495,15 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
     app.get('/api/users/me', authenticateToken, (req, res) => {
         connection.query(
             `SELECT users.id, users.registerid, users.name, users.address, users.role, users.available_time, seats.number AS seatNumber
-         FROM users
-         LEFT JOIN seats ON users.id = seats.user_id
-         WHERE users.id = ?`,
-        [req.user.id],
-        (error, results) => {
-            if (error || results.length === 0) {
-                return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
-            }
-            res.json(results[0]);
+             FROM users
+             LEFT JOIN seats ON users.id = seats.user_id
+             WHERE users.id = ?`,
+            [req.user.id],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+                }
+                res.json(results[0]);
             }
         );
     });
@@ -399,35 +515,32 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
 
         const timeOptions = {
             1: 3600,    // 1시간 = 3600초
-        2: 7200,    // 2시간 = 7200초
-        3: 10800,   // 3시간 = 10800초
-        5: 18000,   // 5시간 = 18000초
-        10: 36000,  // 10시간 = 36000초
-        50: 180000, // 50시간 = 180000초
-        100: 360000 // 100시간 = 360000초
+            2: 7200,    // 2시간 = 7200초
+            3: 10800,   // 3시간 = 10800초
+            5: 18000,   // 5시간 = 18000초
+            10: 36000,  // 10시간 = 36000초
+            50: 180000, // 50시간 = 180000초
+            100: 360000 // 100시간 = 360000초
         };
 
         const additionalTime = timeOptions[hours];
 
-    if (!additionalTime) {
-        return res.status(400).json({ message: '유효하지 않은 시간 선택입니다.' });
-    }
-
-    // 결제 방식에 대한 로직 추가 가능 (예: 결제 API 호출)
-
-    connection.query(
-        'UPDATE users SET available_time = available_time + ? WHERE id = ?',
-        [additionalTime, userId],
-        (error) => {
-            if (error) {
-                console.error('시간 충전 실패:', error);
-                return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
-            }
-            res.json({ message: `시간 충전이 완료되었습니다.` });
+        if (!additionalTime) {
+            return res.status(400).json({ message: '유효하지 않은 시간 선택입니다.' });
         }
-    );
-});
-    
+
+        connection.query(
+            'UPDATE users SET available_time = available_time + ? WHERE id = ?',
+            [additionalTime, userId],
+            (error) => {
+                if (error) {
+                    console.error('시간 충전 실패:', error);
+                    return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
+                }
+                res.json({ message: `시간 충전이 완료되었습니다.` });
+            }
+        );
+    });
 
     // 메뉴 관련 API
     app.get('/api/menus', authenticateToken, (req, res) => {
@@ -532,7 +645,7 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
         });
     });
 
-    // 주문 API 수정 (결제 방식 추가)
+    // 주문 API
     app.post('/api/orders', authenticateToken, (req, res) => {
         const { menuId, quantity, paymentMethod, seatNumber } = req.body;
         const userId = req.user.id;
@@ -583,7 +696,7 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
                FROM orders 
                JOIN menus ON orders.menu_id = menus.id 
                JOIN seats ON orders.seat_number = seats.number
-               WHERE orders.user_id = ?  /* orders.user_id로 명확하게 지정 */
+               WHERE orders.user_id = ?
                ORDER BY orders.created_at DESC`;
 
         const params = req.user.role === 'admin' ? [] : [req.user.id];
