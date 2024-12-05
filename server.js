@@ -227,9 +227,9 @@ function startApp() {
     // 좌석 정보 조회 API
     app.get('/api/seats', (req, res) => {
         connection.query(
-            `SELECT seats.*, users.available_time 
-             FROM seats 
-             LEFT JOIN users ON seats.user_id = users.id`,
+            `SELECT s.*, u.available_time 
+             FROM seats s
+             LEFT JOIN users u ON s.user_id = u.id`,
             (error, results) => {
                 if (error) {
                     console.error('좌석 정보 조회 실패:', error);
