@@ -508,6 +508,82 @@ function startApp() {
             }
         );
     });
+    // 비밀번호 변경 API
+app.post('/api/users/change-password', authenticateToken, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    try {
+        // 현재 비밀번호 확인
+        connection.query('SELECT password FROM users WHERE id = ?', [userId], async (error, results) => {
+            if (error) {
+                console.error('비밀번호 조회 실패:', error);
+                return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+            }
+
+            const user = results[0];
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+            if (!isMatch) {
+                return res.status(400).json({ message: '현재 비밀번호가 일치하지 않습니다.' });
+            }
+
+            // 새 비밀번호 해시화
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            // 비밀번호 업데이트
+            connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId], (error) => {
+                if (error) {
+                    console.error('비밀번호 업데이트 실패:', error);
+                    return res.status(500).json({ message: '비밀번호 변경에 실패했습니다.' });
+                }
+
+                res.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+            });
+        });
+    } catch (error) {
+        console.error('비밀번호 변경 처리 실패:', error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
+
+// 사용자 목록 조회 API
+app.get('/api/users', authenticateToken, isAdmin, (req, res) => {
+    connection.query(
+        'SELECT id, registerid, name, role, available_time, created_at FROM users',
+        (error, results) => {
+            if (error) {
+                console.error('사용자 목록 조회 실패:', error);
+                return res.status(500).json({ message: '사용자 목록 조회에 실패했습니다.' });
+            }
+            res.json(results);
+        }
+    );
+});
+// 비밀번호 초기화 API
+app.post('/api/users/:id/reset-password', authenticateToken, isAdmin, async (req, res) => {
+    const { id } = req.params;
+    const newPassword = '1111'; // 초기화할 비밀번호
+
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        connection.query(
+            'UPDATE users SET password = ? WHERE id = ?',
+            [hashedPassword, id],
+            (error) => {
+                if (error) {
+                    console.error('비밀번호 초기화 실패:', error);
+                    return res.status(500).json({ message: '비밀번호 초기화에 실패했습니다.' });
+                }
+                res.json({ message: '비밀번호가 초기화되었습니다.' });
+            }
+        );
+    } catch (error) {
+        console.error('비밀번호 해시화 실패:', error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
 
     // 시간 충전 API
     app.post('/api/time-charge', authenticateToken, (req, res) => {
