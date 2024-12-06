@@ -193,27 +193,23 @@ function startApp() {
         console.log('DB 연결 성공');
     });
 
-    // 좌석 초기화
-    connection.query('DELETE FROM orders', (err) => {  // 먼저 orders 테이블의 데이터를 삭제
+    // 좌석 초기화 로직 수정
+    connection.query('SELECT COUNT(*) as count FROM seats', (err, results) => {
         if (err) {
-            console.error('주문 데이터 초기화 실패:', err);
+            console.error('좌석 조회 실패:', err);
             return;
         }
 
-        connection.query('DELETE FROM seats', (err) => {  // 그 다음 seats 테이블 초기화
-            if (err) {
-                console.error('좌석 초기화 실패:', err);
-                return;
-            }
-
+        // seats 테이블이 비어있을 때만 초기화
+        if (results[0].count === 0) {
             const insertSeatsQuery = `
-    INSERT INTO seats (number, registerid, user_id) VALUES
-    (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
-    (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
-    (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
-    (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL),
-    (21, NULL, NULL);
-`;
+                INSERT INTO seats (number, registerid, user_id) VALUES
+                (1, NULL, NULL), (2, NULL, NULL), (3, NULL, NULL), (4, NULL, NULL), (5, NULL, NULL),
+                (6, NULL, NULL), (7, NULL, NULL), (8, NULL, NULL), (9, NULL, NULL), (10, NULL, NULL),
+                (11, NULL, NULL), (12, NULL, NULL), (13, NULL, NULL), (14, NULL, NULL), (15, NULL, NULL),
+                (16, NULL, NULL), (17, NULL, NULL), (18, NULL, NULL), (19, NULL, NULL), (20, NULL, NULL),
+                (21, NULL, NULL);
+            `;
 
             connection.query(insertSeatsQuery, (err) => {
                 if (err) {
@@ -222,7 +218,7 @@ function startApp() {
                     console.log('좌석 초기화 완료');
                 }
             });
-        });
+        }
     });
 
     // 좌석 정보 조회 API
