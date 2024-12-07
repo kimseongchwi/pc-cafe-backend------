@@ -93,7 +93,7 @@ initialConnection.connect((err) => {
                     registerid VARCHAR(50) UNIQUE NOT NULL,
                     password VARCHAR(255) NOT NULL,
                     name VARCHAR(50) NOT NULL,
-                    address VARCHAR(255),
+                    phone_number VARCHAR(255),
                     role ENUM('user', 'admin') NOT NULL,
                     available_time INT DEFAULT 0,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -471,7 +471,7 @@ function startApp() {
 
     // 회원가입 API
     app.post('/api/auth/register', async (req, res) => {
-        const { registerid, password, name, address, role, adminCode } = req.body;
+        const { registerid, password, name, phone_number, role, adminCode } = req.body;
 
         if (!registerid || !password || !name) {
             return res.status(400).json({ message: '필수 항목을 모두 입력해주세요.' });
@@ -485,8 +485,8 @@ function startApp() {
             const hashedPassword = await bcrypt.hash(password, 10);
 
             connection.query(
-                'INSERT INTO users (registerid, password, name, address, role) VALUES (?, ?, ?, ?, ?)',
-                [registerid, hashedPassword, name, address || null, role],
+                'INSERT INTO users (registerid, password, name, phone_number, role) VALUES (?, ?, ?, ?, ?)',
+                [registerid, hashedPassword, name, phone_number || null, role],
                 (error) => {
                     if (error) {
                         if (error.code === 'ER_DUP_ENTRY') {
@@ -505,7 +505,7 @@ function startApp() {
     // 사용자 정보 조회 API
     app.get('/api/users/me', authenticateToken, (req, res) => {
         connection.query(
-            `SELECT users.id, users.registerid, users.name, users.address, users.role, users.available_time, seats.number AS seatNumber
+            `SELECT users.id, users.registerid, users.name, users.phone_number, users.role, users.available_time, seats.number AS seatNumber
              FROM users
              LEFT JOIN seats ON users.id = seats.user_id
              WHERE users.id = ?`,
@@ -560,7 +560,7 @@ app.post('/api/users/change-password', authenticateToken, async (req, res) => {
 // 사용자 목록 조회 API
 app.get('/api/users', authenticateToken, isAdmin, (req, res) => {
     connection.query(
-        'SELECT id, registerid, name, role, available_time, created_at FROM users',
+        'SELECT id, registerid, name, phone_number, role, available_time, created_at FROM users',
         (error, results) => {
             if (error) {
                 console.error('사용자 목록 조회 실패:', error);
