@@ -343,37 +343,6 @@ function startApp() {
         );
     });
 
-    // 강제 로그아웃 API
-    app.post('/api/admin/force-logout/:seatNumber', authenticateToken, isAdmin, (req, res) => {
-        const { seatNumber } = req.params;
-
-        connection.query(
-            'SELECT user_id FROM seats WHERE number = ?',
-            [seatNumber],
-            (error, results) => {
-                if (error || results.length === 0) {
-                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
-                }
-
-                const userId = results[0].user_id;
-                if (!userId) {
-                    return res.status(400).json({ message: '이미 비어있는 좌석입니다.' });
-                }
-
-                connection.query(
-                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE number = ?',
-                    [seatNumber],
-                    (error) => {
-                        if (error) {
-                            return res.status(500).json({ message: '강제 로그아웃에 실패했습니다.' });
-                        }
-                        res.json({ success: true });
-                    }
-                );
-            }
-        );
-    });
-
     // 시간 충전 API (관리자용)
     app.post('/api/admin/charge-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
         const { seatNumber } = req.params;
