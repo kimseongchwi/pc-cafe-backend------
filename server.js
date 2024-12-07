@@ -226,24 +226,45 @@ function startApp() {
         const latestBackupFile = files.sort().reverse()[0];
         const data = JSON.parse(fs.readFileSync(path.join(backupsDir, latestBackupFile)));
 
-        connection.query(`DELETE FROM ${tableName}`, (error) => {
+        connection.query(`SET FOREIGN_KEY_CHECKS = 0`, (error) => {
             if (error) {
-                console.error(`${tableName} 초기화 실패:`, error);
+                console.error('외래 키 체크 비활성화 실패:', error);
                 return;
             }
 
-            if (data.length > 0) {
-                const columns = Object.keys(data[0]).join(', ');
-                const values = data.map(row => `(${Object.values(row).map(value => mysql.escape(value)).join(', ')})`).join(', ');
+            connection.query(`DELETE FROM ${tableName}`, (error) => {
+                if (error) {
+                    console.error(`${tableName} 초기화 실패:`, error);
+                    return;
+                }
 
-                connection.query(`INSERT INTO ${tableName} (${columns}) VALUES ${values}`, (error) => {
+                if (data.length > 0) {
+                    const columns = Object.keys(data[0]).join(', ');
+                    const values = data.map(row => {
+                        const rowValues = Object.values(row).map(value => {
+                            if (typeof value === 'string' && value.includes('T')) {
+                                return mysql.escape(value.replace('T', ' ').slice(0, 19));
+                            }
+                            return mysql.escape(value);
+                        });
+                        return `(${rowValues.join(', ')})`;
+                    }).join(', ');
+
+                    connection.query(`INSERT INTO ${tableName} (${columns}) VALUES ${values}`, (error) => {
+                        if (error) {
+                            console.error(`${tableName} 복원 실패:`, error);
+                            return;
+                        }
+                        console.log(`${tableName} 복원 완료`);
+                    });
+                }
+
+                connection.query(`SET FOREIGN_KEY_CHECKS = 1`, (error) => {
                     if (error) {
-                        console.error(`${tableName} 복원 실패:`, error);
-                        return;
+                        console.error('외래 키 체크 활성화 실패:', error);
                     }
-                    console.log(`${tableName} 복원 완료`);
                 });
-            }
+            });
         });
     };
 
@@ -354,74 +375,74 @@ function startApp() {
     });
 
     // 시간 충전 API (관리자용)
-app.post('/api/admin/charge-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
-    const { seatNumber } = req.params;
-    const { hours } = req.body;
+    app.post('/api/admin/charge-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
+        const { seatNumber } = req.params;
+        const { hours } = req.body;
 
-    const additionalTime = hours * 3600; // 시간을 초로 변환
+        const additionalTime = hours * 3600; // 시간을 초로 변환
 
-    connection.query(
-        'SELECT user_id FROM seats WHERE number = ?',
-        [seatNumber],
-        (error, results) => {
-            if (error || results.length === 0) {
-                return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
-            }
-
-            const userId = results[0].user_id;
-            if (!userId) {
-                return res.status(400).json({ message: '빈 좌석입니다.' });
-            }
-
-            connection.query(
-                'UPDATE users SET available_time = available_time + ? WHERE id = ?',
-                [additionalTime, userId],
-                (error) => {
-                    if (error) {
-                        return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
-                    }
-                    res.json({ success: true });
-                    backupData('users'); // 시간 충전 후 백업
+        connection.query(
+            'SELECT user_id FROM seats WHERE number = ?',
+            [seatNumber],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
                 }
-            );
-        }
-    );
-});
+
+                const userId = results[0].user_id;
+                if (!userId) {
+                    return res.status(400).json({ message: '빈 좌석입니다.' });
+                }
+
+                connection.query(
+                    'UPDATE users SET available_time = available_time + ? WHERE id = ?',
+                    [additionalTime, userId],
+                    (error) => {
+                        if (error) {
+                            return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
+                        }
+                        res.json({ success: true });
+                        backupData('users'); // 시간 충전 후 백업
+                    }
+                );
+            }
+        );
+    });
 
     // 시간 제거 API
-app.post('/api/admin/remove-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
-    const { seatNumber } = req.params;
-    const { minutes } = req.body;
+    app.post('/api/admin/remove-time/:seatNumber', authenticateToken, isAdmin, (req, res) => {
+        const { seatNumber } = req.params;
+        const { minutes } = req.body;
 
-    const removeTime = minutes * 60; // 분을 초로 변환
+        const removeTime = minutes * 60; // 분을 초로 변환
 
-    connection.query(
-        'SELECT user_id FROM seats WHERE number = ?',
-        [seatNumber],
-        (error, results) => {
-            if (error || results.length === 0) {
-                return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
-            }
-
-            const userId = results[0].user_id;
-            if (!userId) {
-                return res.status(400).json({ message: '빈 좌석입니다.' });
-            }
-
-            connection.query(
-                'UPDATE users SET available_time = GREATEST(0, available_time - ?) WHERE id = ?',
-                [removeTime, userId],
-                (error) => {
-                    if (error) {
-                        return res.status(500).json({ message: '시간 제거에 실패했습니다.' });
-                    }
-                    res.json({ success: true });
-                    backupData('users'); // 시간 제거 후 백업
+        connection.query(
+            'SELECT user_id FROM seats WHERE number = ?',
+            [seatNumber],
+            (error, results) => {
+                if (error || results.length === 0) {
+                    return res.status(400).json({ message: '좌석 정보를 찾을 수 없습니다.' });
                 }
-            );
-        }
-    );
-});
+
+                const userId = results[0].user_id;
+                if (!userId) {
+                    return res.status(400).json({ message: '빈 좌석입니다.' });
+                }
+
+                connection.query(
+                    'UPDATE users SET available_time = GREATEST(0, available_time - ?) WHERE id = ?',
+                    [removeTime, userId],
+                    (error) => {
+                        if (error) {
+                            return res.status(500).json({ message: '시간 제거에 실패했습니다.' });
+                        }
+                        res.json({ success: true });
+                        backupData('users'); // 시간 제거 후 백업
+                    }
+                );
+            }
+        );
+    });
 
     // 로그인 시 좌석 업데이트
     app.post('/api/auth/login', async (req, res) => {
@@ -481,34 +502,34 @@ app.post('/api/admin/remove-time/:seatNumber', authenticateToken, isAdmin, (req,
     });
 
     // 로그아웃 시 좌석 정보 초기화
-app.post('/api/auth/logout', authenticateToken, (req, res) => {
-    const userId = req.user.id;
-    const remainingTime = req.body.remainingTime;
+    app.post('/api/auth/logout', authenticateToken, (req, res) => {
+        const userId = req.user.id;
+        const remainingTime = req.body.remainingTime;
 
-    // 남은 시간 저장
-    connection.query(
-        'UPDATE users SET available_time = ? WHERE id = ?',
-        [remainingTime, userId],
-        (error) => {
-            if (error) {
-                console.error('남은 시간 저장 실패:', error);
-                return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
-            }
-
-            // 좌석 정보 초기화
-            connection.query(
-                'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
-                [userId],
-                (error) => {
-                    if (error) {
-                        console.error('좌석 정보 초기화 실패:', error);
-                        return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
-                    }
-                    res.json({ message: '로그아웃이 완료되었습니다.' });
-                    backupData('users'); // 로그아웃 후 백업
+        // 남은 시간 저장
+        connection.query(
+            'UPDATE users SET available_time = ? WHERE id = ?',
+            [remainingTime, userId],
+            (error) => {
+                if (error) {
+                    console.error('남은 시간 저장 실패:', error);
+                    return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
                 }
-            );
-        }
+
+                // 좌석 정보 초기화
+                connection.query(
+                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
+                    [userId],
+                    (error) => {
+                        if (error) {
+                            console.error('좌석 정보 초기화 실패:', error);
+                            return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
+                        }
+                        res.json({ message: '로그아웃이 완료되었습니다.' });
+                        backupData('users'); // 로그아웃 후 백업
+                    }
+                );
+            }
         );
     });
 
@@ -610,6 +631,7 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
                     }
 
                     res.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+                    backupData('users'); // 비밀번호 변경 후 백업
                 });
             });
         } catch (error) {
@@ -633,30 +655,30 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
     });
 
     // 비밀번호 초기화 API
-app.post('/api/users/:id/reset-password', authenticateToken, isAdmin, async (req, res) => {
-    const { id } = req.params;
-    const newPassword = '1111'; // 초기화할 비밀번호
+    app.post('/api/users/:id/reset-password', authenticateToken, isAdmin, async (req, res) => {
+        const { id } = req.params;
+        const newPassword = '1111'; // 초기화할 비밀번호
 
-    try {
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        try {
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        connection.query(
-            'UPDATE users SET password = ? WHERE id = ?',
-            [hashedPassword, id],
-            (error) => {
-                if (error) {
-                    console.error('비밀번호 초기화 실패:', error);
-                    return res.status(500).json({ message: '비밀번호 초기화에 실패했습니다.' });
+            connection.query(
+                'UPDATE users SET password = ? WHERE id = ?',
+                [hashedPassword, id],
+                (error) => {
+                    if (error) {
+                        console.error('비밀번호 초기화 실패:', error);
+                        return res.status(500).json({ message: '비밀번호 초기화에 실패했습니다.' });
+                    }
+                    res.json({ message: '비밀번호가 초기화되었습니다.' });
+                    backupData('users'); // 비밀번호 초기화 후 백업
                 }
-                res.json({ message: '비밀번호가 초기화되었습니다.' });
-                backupData('users'); // 비밀번호 초기화 후 백업
-            }
-        );
-    } catch (error) {
-        console.error('비밀번호 해시화 실패:', error);
-        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
-    }
-});
+            );
+        } catch (error) {
+            console.error('비밀번호 해시화 실패:', error);
+            res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+        }
+    });
 
     // 시간 충전 API
     app.post('/api/time-charge', authenticateToken, (req, res) => {
