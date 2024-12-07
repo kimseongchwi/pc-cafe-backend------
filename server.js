@@ -117,6 +117,7 @@ initialConnection.connect((err) => {
                     registerid VARCHAR(50),
                     user_id INT,
                     user_name VARCHAR(50),
+                    start_time TIMESTAMP NULL DEFAULT NULL,
                     FOREIGN KEY (user_id) REFERENCES users(id)
                 )
             `;
@@ -397,7 +398,7 @@ function startApp() {
                 // 좌석 업데이트 (관리자가 아닌 경우에만)
                 if (seatNumber && user.role !== 'admin') {
                     connection.query(
-                        'UPDATE seats SET registerid = ?, user_id = ?, user_name = ? WHERE number = ?',
+                        'UPDATE seats SET registerid = ?, user_id = ?, user_name = ?, start_time = NOW() WHERE number = ?',
                         [user.registerid, user.id, user.name, seatNumber],
                         (error) => {
                             if (error) {
@@ -421,6 +422,7 @@ function startApp() {
         );
     });
 
+    // 로그아웃 시 좌석 정보 초기화
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
         const remainingTime = req.body.remainingTime;
@@ -437,7 +439,7 @@ function startApp() {
 
                 // 좌석 정보 초기화
                 connection.query(
-                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL WHERE user_id = ?',
+                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
                     [userId],
                     (error) => {
                         if (error) {
