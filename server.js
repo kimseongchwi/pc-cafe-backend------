@@ -207,11 +207,11 @@ function startApp() {
         const backupFile = path.join(backupsDir, `${date}-${tableName}.json`);
 
         let query = `SELECT * FROM ${tableName}`;
-        if (tableName === 'users') {    
-            query = `SELECT id, registerid, name, phone_number, role, available_time, 
+        if (tableName === 'users') {
+            query = `SELECT id, registerid, password, name, phone_number, role, available_time, 
                      CASE WHEN is_logged_in = 'on' THEN 'on' ELSE 'off' END as is_logged_in, 
                      created_at FROM users`;
-        }   
+        }
 
         connection.query(query, (error, results) => {
             if (error) {
@@ -223,48 +223,47 @@ function startApp() {
         });
     };
 
-    // 데이터 복원 함수
-    const restoreData = (tableName) => {
+    //데이터 복원 함수
+    function restoreData(tableName) {
         const files = fs.readdirSync(backupsDir).filter(file => file.includes(tableName));
         if (files.length === 0) {
             console.log(`${tableName} 복원할 백업 파일이 없습니다.`);
             return;
         }
+    
         const latestBackupFile = files.sort().reverse()[0];
         let data = JSON.parse(fs.readFileSync(path.join(backupsDir, latestBackupFile)));
-
-        // is_logged_in 값을 변환
-        if (tableName === 'users') {
-            data = data.map(user => ({
-            ...user,
-            is_logged_in: user.is_logged_in === 1 ? 'on' : 'off'
-            }));
-        }
-
+    
+        // is_logged_in 값을 변환 및 날짜 형식 변환
+        data = data.map(row => {
+            if (tableName === 'users') {
+                row.is_logged_in = row.is_logged_in === 1 ? 'on' : 'off';
+            }
+            if (row.created_at) {
+                row.created_at = new Date(row.created_at).toISOString().slice(0, 19).replace('T', ' ');
+            }
+            return row;
+        });
+    
         connection.query(`SET FOREIGN_KEY_CHECKS = 0`, (error) => {
             if (error) {
                 console.error('외래 키 체크 비활성화 실패:', error);
                 return;
             }
-
+    
             connection.query(`DELETE FROM ${tableName}`, (error) => {
                 if (error) {
                     console.error(`${tableName} 초기화 실패:`, error);
                     return;
                 }
-
+    
                 if (data.length > 0) {
                     const columns = Object.keys(data[0]).join(', ');
                     const values = data.map(row => {
-                        const rowValues = Object.values(row).map(value => {
-                            if (typeof value === 'string' && value.includes('T')) {
-                                return mysql.escape(value.replace('T', ' ').slice(0, 19));
-                            }
-                            return mysql.escape(value);
-                        });
+                        const rowValues = Object.values(row).map(value => mysql.escape(value));
                         return `(${rowValues.join(', ')})`;
                     }).join(', ');
-
+    
                     connection.query(`INSERT INTO ${tableName} (${columns}) VALUES ${values}`, (error) => {
                         if (error) {
                             console.error(`${tableName} 복원 실패:`, error);
@@ -273,7 +272,7 @@ function startApp() {
                         console.log(`${tableName} 복원 완료`);
                     });
                 }
-
+    
                 connection.query(`SET FOREIGN_KEY_CHECKS = 1`, (error) => {
                     if (error) {
                         console.error('외래 키 체크 활성화 실패:', error);
@@ -281,7 +280,7 @@ function startApp() {
                 });
             });
         });
-    };
+    }
 
     // 데이터 복원
     ['users', 'menus', 'orders'].forEach(restoreData);
@@ -492,6 +491,8 @@ function startApp() {
                         available_time: user.available_time
                     }
                 });
+
+                backupData('users'); // 로그인 후 백업
             }
         );
     });
@@ -730,21 +731,16 @@ function startApp() {
         const { name, price, category } = req.body;
         const image_path = req.file ? req.file.path.replace(/\\/g, '/') : null;
 
-        if (!name || !price) {
-            res.status(400).json({ error: '메뉴명과 가격은 필수입니다.' });
-            return;
-        }
-
         connection.query(
             'INSERT INTO menus (name, price, category, image_path) VALUES (?, ?, ?, ?)',
             [name, price, category, image_path],
-            (error, results) => {
+            (error) => {
                 if (error) {
                     console.error('메뉴 추가 실패:', error);
                     res.status(500).json({ error: '메뉴 추가에 실패했습니다.' });
                     return;
                 }
-                res.json({ id: results.insertId });
+                res.status(201).json({ message: '메뉴가 추가되었습니다.' });
                 backupData('menus');
             }
         );
@@ -756,7 +752,7 @@ function startApp() {
         const image_path = req.file ? req.file.path.replace(/\\/g, '/') : null;
 
         let query = 'UPDATE menus SET name = ?, price = ?, category = ?';
-        let params = [name, price, category];
+        const params = [name, price, category];
 
         if (image_path) {
             query += ', image_path = ?';
