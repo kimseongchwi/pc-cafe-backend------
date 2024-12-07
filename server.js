@@ -96,6 +96,7 @@ initialConnection.connect((err) => {
                     phone_number VARCHAR(255),
                     role ENUM('user', 'admin') NOT NULL,
                     available_time INT DEFAULT 0,
+                    is_logged_in BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `;
@@ -204,6 +205,10 @@ function startApp() {
     const backupData = (tableName) => {
         const date = new Date().toISOString().split('T')[0];
         const backupFile = path.join(backupsDir, `${date}-${tableName}.json`);
+        let query = `SELECT * FROM ${tableName}`;
+        if (tableName === 'users') {
+            query = `SELECT id, registerid, name, phone_number, role, available_time, is_logged_in, created_at FROM users`;
+        }
 
         connection.query(`SELECT * FROM ${tableName}`, (error, results) => {
             if (error) {
@@ -274,7 +279,7 @@ function startApp() {
     // 사용 가능 시간 감소 로직
     setInterval(() => {
         connection.query(
-            'UPDATE users SET available_time = GREATEST(0, available_time - 1) WHERE available_time > 0',
+            'UPDATE users SET available_time = GREATEST(0, available_time - 1) WHERE available_time > 0 AND is_logged_in = TRUE',
             (error) => {
                 if (error) {
                     console.error('사용 가능 시간 감소 실패:', error);
@@ -456,6 +461,17 @@ function startApp() {
                     );
                 }
 
+                // 로그인 상태 업데이트
+                connection.query(
+                    'UPDATE users SET is_logged_in = TRUE WHERE id = ?',
+                    [user.id],
+                    (error) => {
+                        if (error) {
+                            console.error('로그인 상태 업데이트 실패:', error);
+                        }
+                    }
+                );
+
                 res.json({
                     token,
                     user: {
@@ -470,14 +486,14 @@ function startApp() {
         );
     });
 
-    // 로그아웃 시 좌석 정보 초기화
+    // 사용종료 시 좌석 정보 초기화
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
         const remainingTime = req.body.remainingTime;
 
         // 남은 시간 저장
         connection.query(
-            'UPDATE users SET available_time = ? WHERE id = ?',
+            'UPDATE users SET available_time = ?, is_logged_in = FALSE WHERE id = ?',
             [remainingTime, userId],
             (error) => {
                 if (error) {
@@ -494,8 +510,8 @@ function startApp() {
                             console.error('좌석 정보 초기화 실패:', error);
                             return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
                         }
-                        res.json({ message: '로그아웃이 완료되었습니다.' });
-                        backupData('users'); // 로그아웃 후 백업
+                        res.json({ message: '사용이 종료되었습니다.' });
+                        backupData('users'); // 사용종료 후 백업
                     }
                 );
             }
