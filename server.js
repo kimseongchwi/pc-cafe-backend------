@@ -192,6 +192,18 @@ function startApp() {
         }
         console.log('DB 연결 성공');
     });
+    // 사용 가능 시간 감소 로직
+    setInterval(() => {
+        connection.query(
+            'UPDATE users SET available_time = GREATEST(0, available_time - 1) WHERE available_time > 0',
+            (error) => {
+                if (error) {
+                    console.error('사용 가능 시간 감소 실패:', error);
+                
+                }
+            }
+        );
+    }, 1000); // 1초마다 실행
 
     // 좌석 초기화 로직 수정
     connection.query('SELECT COUNT(*) as count FROM seats', (err, results) => {
