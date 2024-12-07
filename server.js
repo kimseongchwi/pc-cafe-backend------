@@ -96,7 +96,7 @@ initialConnection.connect((err) => {
                     phone_number VARCHAR(255),
                     role ENUM('user', 'admin') NOT NULL,
                     available_time INT DEFAULT 0,
-                    is_logged_in BOOLEAN DEFAULT FALSE,
+                    is_logged_in ENUM('on', 'off') DEFAULT 'off',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `;
@@ -205,12 +205,15 @@ function startApp() {
     const backupData = (tableName) => {
         const date = new Date().toISOString().split('T')[0];
         const backupFile = path.join(backupsDir, `${date}-${tableName}.json`);
-        let query = `SELECT * FROM ${tableName}`;
-        if (tableName === 'users') {
-            query = `SELECT id, registerid, name, phone_number, role, available_time, is_logged_in, created_at FROM users`;
-        }
 
-        connection.query(`SELECT * FROM ${tableName}`, (error, results) => {
+        let query = `SELECT * FROM ${tableName}`;
+        if (tableName === 'users') {    
+            query = `SELECT id, registerid, name, phone_number, role, available_time, 
+                     CASE WHEN is_logged_in = 'on' THEN 'on' ELSE 'off' END as is_logged_in, 
+                     created_at FROM users`;
+        }   
+
+        connection.query(query, (error, results) => {
             if (error) {
                 console.error(`${tableName} 백업 실패:`, error);
                 return;
@@ -227,9 +230,16 @@ function startApp() {
             console.log(`${tableName} 복원할 백업 파일이 없습니다.`);
             return;
         }
-
         const latestBackupFile = files.sort().reverse()[0];
-        const data = JSON.parse(fs.readFileSync(path.join(backupsDir, latestBackupFile)));
+        let data = JSON.parse(fs.readFileSync(path.join(backupsDir, latestBackupFile)));
+
+        // is_logged_in 값을 변환
+        if (tableName === 'users') {
+            data = data.map(user => ({
+            ...user,
+            is_logged_in: user.is_logged_in === 1 ? 'on' : 'off'
+            }));
+        }
 
         connection.query(`SET FOREIGN_KEY_CHECKS = 0`, (error) => {
             if (error) {
@@ -279,7 +289,7 @@ function startApp() {
     // 사용 가능 시간 감소 로직
     setInterval(() => {
         connection.query(
-            'UPDATE users SET available_time = GREATEST(0, available_time - 1) WHERE available_time > 0 AND is_logged_in = TRUE',
+            'UPDATE users SET available_time = GREATEST(0, available_time - 1) WHERE available_time > 0 AND is_logged_in = "on"',
             (error) => {
                 if (error) {
                     console.error('사용 가능 시간 감소 실패:', error);
@@ -463,7 +473,7 @@ function startApp() {
 
                 // 로그인 상태 업데이트
                 connection.query(
-                    'UPDATE users SET is_logged_in = TRUE WHERE id = ?',
+                    'UPDATE users SET is_logged_in = "on" WHERE id = ?',
                     [user.id],
                     (error) => {
                         if (error) {
@@ -486,14 +496,14 @@ function startApp() {
         );
     });
 
-    // 사용종료 시 좌석 정보 초기화
+    // 로그아웃 시 로그인 상태 업데이트
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
         const remainingTime = req.body.remainingTime;
 
         // 남은 시간 저장
         connection.query(
-            'UPDATE users SET available_time = ?, is_logged_in = FALSE WHERE id = ?',
+            'UPDATE users SET available_time = ?, is_logged_in = "off" WHERE id = ?',
             [remainingTime, userId],
             (error) => {
                 if (error) {
@@ -510,8 +520,8 @@ function startApp() {
                             console.error('좌석 정보 초기화 실패:', error);
                             return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
                         }
-                        res.json({ message: '사용이 종료되었습니다.' });
-                        backupData('users'); // 사용종료 후 백업
+                        res.json({ message: '로그아웃이 완료되었습니다.' });
+                        backupData('users'); // 로그아웃 후 백업
                     }
                 );
             }
