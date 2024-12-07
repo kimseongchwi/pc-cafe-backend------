@@ -193,60 +193,6 @@ function startApp() {
         }
         console.log('DB 연결 성공');
     });
-
-    // 백업 디렉토리 설정
-    const backupsDir = path.join(__dirname, 'backups');
-    if (!fs.existsSync(backupsDir)) {
-        fs.mkdirSync(backupsDir);
-    }
-
-    // 데이터 백업 함수
-    const backupData = (tableName) => {
-        const date = new Date().toISOString().split('T')[0];
-        const backupFile = path.join(backupsDir, `${date}-${tableName}.json`);
-
-        connection.query(`SELECT * FROM ${tableName}`, (error, results) => {
-            if (error) {
-                console.error(`${tableName} 백업 실패:`, error);
-                return;
-            }
-            fs.writeFileSync(backupFile, JSON.stringify(results, null, 2));
-            console.log(`${tableName} 백업 완료: ${backupFile}`);
-        });
-    };
-
-    // 데이터 복원 함수
-    const restoreData = (tableName) => {
-        const files = fs.readdirSync(backupsDir).filter(file => file.includes(tableName));
-        if (files.length === 0) {
-            console.log(`${tableName} 복원할 백업 파일이 없습니다.`);
-            return;
-        }
-
-        const latestBackupFile = files.sort().reverse()[0];
-        const data = JSON.parse(fs.readFileSync(path.join(backupsDir, latestBackupFile)));
-
-        connection.query(`DELETE FROM ${tableName}`, (error) => {
-            if (error) {
-                console.error(`${tableName} 데이터 삭제 실패:`, error);
-                return;
-            }
-
-            if (data.length > 0) {
-                const columns = Object.keys(data[0]).join(', ');
-                const values = data.map(row => `(${Object.values(row).map(value => connection.escape(value)).join(', ')})`).join(', ');
-
-                connection.query(`INSERT INTO ${tableName} (${columns}) VALUES ${values}`, (error) => {
-                    if (error) {
-                        console.error(`${tableName} 복원 실패:`, error);
-                        return;
-                    }
-                    console.log(`${tableName} 복원 완료`);
-                });
-            }
-        });
-    };
-
     // 사용 가능 시간 감소 로직
     setInterval(() => {
         connection.query(
@@ -254,6 +200,7 @@ function startApp() {
             (error) => {
                 if (error) {
                     console.error('사용 가능 시간 감소 실패:', error);
+                
                 }
             }
         );
@@ -548,7 +495,6 @@ function startApp() {
                         return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
                     }
                     res.status(201).json({ message: '회원가입이 완료되었습니다.' });
-                    backupData('users');
                 }
             );
         } catch (error) {
@@ -572,84 +518,82 @@ function startApp() {
             }
         );
     });
-
     // 비밀번호 변경 API
-    app.post('/api/users/change-password', authenticateToken, async (req, res) => {
-        const { currentPassword, newPassword } = req.body;
-        const userId = req.user.id;
+app.post('/api/users/change-password', authenticateToken, async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
 
-        try {
-            // 현재 비밀번호 확인
-            connection.query('SELECT password FROM users WHERE id = ?', [userId], async (error, results) => {
-                if (error) {
-                    console.error('비밀번호 조회 실패:', error);
-                    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
-                }
-
-                const user = results[0];
-                const isMatch = await bcrypt.compare(currentPassword, user.password);
-
-                if (!isMatch) {
-                    return res.status(400).json({ message: '현재 비밀번호가 일치하지 않습니다.' });
-                }
-
-                // 새 비밀번호 해시화
-                const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-                // 비밀번호 업데이트
-                connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId], (error) => {
-                    if (error) {
-                        console.error('비밀번호 업데이트 실패:', error);
-                        return res.status(500).json({ message: '비밀번호 변경에 실패했습니다.' });
-                    }
-
-                    res.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
-                });
-            });
-        } catch (error) {
-            console.error('비밀번호 변경 처리 실패:', error);
-            res.status(500).json({ message: '서버 오류가 발생했습니다.' });
-        }
-    });
-
-    // 사용자 목록 조회 API
-    app.get('/api/users', authenticateToken, isAdmin, (req, res) => {
-        connection.query(
-            'SELECT id, registerid, name, phone_number, role, available_time, created_at FROM users',
-            (error, results) => {
-                if (error) {
-                    console.error('사용자 목록 조회 실패:', error);
-                    return res.status(500).json({ message: '사용자 목록 조회에 실패했습니다.' });
-                }
-                res.json(results);
+    try {
+        // 현재 비밀번호 확인
+        connection.query('SELECT password FROM users WHERE id = ?', [userId], async (error, results) => {
+            if (error) {
+                console.error('비밀번호 조회 실패:', error);
+                return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
             }
-        );
-    });
 
-    // 비밀번호 초기화 API
-    app.post('/api/users/:id/reset-password', authenticateToken, isAdmin, async (req, res) => {
-        const { id } = req.params;
-        const newPassword = '1111'; // 초기화할 비밀번호
+            const user = results[0];
+            const isMatch = await bcrypt.compare(currentPassword, user.password);
 
-        try {
+            if (!isMatch) {
+                return res.status(400).json({ message: '현재 비밀번호가 일치하지 않습니다.' });
+            }
+
+            // 새 비밀번호 해시화
             const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-            connection.query(
-                'UPDATE users SET password = ? WHERE id = ?',
-                [hashedPassword, id],
-                (error) => {
-                    if (error) {
-                        console.error('비밀번호 초기화 실패:', error);
-                        return res.status(500).json({ message: '비밀번호 초기화에 실패했습니다.' });
-                    }
-                    res.json({ message: '비밀번호가 초기화되었습니다.' });
+            // 비밀번호 업데이트
+            connection.query('UPDATE users SET password = ? WHERE id = ?', [hashedPassword, userId], (error) => {
+                if (error) {
+                    console.error('비밀번호 업데이트 실패:', error);
+                    return res.status(500).json({ message: '비밀번호 변경에 실패했습니다.' });
                 }
-            );
-        } catch (error) {
-            console.error('비밀번호 해시화 실패:', error);
-            res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+
+                res.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+            });
+        });
+    } catch (error) {
+        console.error('비밀번호 변경 처리 실패:', error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
+
+// 사용자 목록 조회 API
+app.get('/api/users', authenticateToken, isAdmin, (req, res) => {
+    connection.query(
+        'SELECT id, registerid, name, phone_number, role, available_time, created_at FROM users',
+        (error, results) => {
+            if (error) {
+                console.error('사용자 목록 조회 실패:', error);
+                return res.status(500).json({ message: '사용자 목록 조회에 실패했습니다.' });
+            }
+            res.json(results);
         }
-    });
+    );
+});
+// 비밀번호 초기화 API
+app.post('/api/users/:id/reset-password', authenticateToken, isAdmin, async (req, res) => {
+    const { id } = req.params;
+    const newPassword = '1111'; // 초기화할 비밀번호
+
+    try {
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        connection.query(
+            'UPDATE users SET password = ? WHERE id = ?',
+            [hashedPassword, id],
+            (error) => {
+                if (error) {
+                    console.error('비밀번호 초기화 실패:', error);
+                    return res.status(500).json({ message: '비밀번호 초기화에 실패했습니다.' });
+                }
+                res.json({ message: '비밀번호가 초기화되었습니다.' });
+            }
+        );
+    } catch (error) {
+        console.error('비밀번호 해시화 실패:', error);
+        res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    }
+});
 
     // 시간 충전 API
     app.post('/api/time-charge', authenticateToken, (req, res) => {
@@ -720,7 +664,6 @@ function startApp() {
                     return;
                 }
                 res.json({ id: results.insertId });
-                backupData('menus');
             }
         );
     });
@@ -748,7 +691,6 @@ function startApp() {
                 return;
             }
             res.json({ success: true });
-            backupData('menus');
         });
     });
 
@@ -785,7 +727,6 @@ function startApp() {
                         return res.status(500).json({ error: '메뉴 삭제에 실패했습니다.' });
                     }
                     res.json({ success: true });
-                    backupData('menus');
                 });
             });
         });
@@ -823,7 +764,6 @@ function startApp() {
                             id: results.insertId,
                             message: '주문이 완료되었습니다.'
                         });
-                        backupData('orders');
                     }
                 );
             }
@@ -874,7 +814,6 @@ function startApp() {
                     success: true,
                     message: '주문 상태가 변경되었습니다.'
                 });
-                backupData('orders');
             }
         );
     });
