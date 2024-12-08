@@ -517,7 +517,7 @@ app.get('/api/seats', (req, res) => {
     app.post('/api/auth/logout', authenticateToken, (req, res) => {
         const userId = req.user.id;
         const remainingTime = req.body.remainingTime;
-
+    
         // 남은 시간 저장
         connection.query(
             'UPDATE users SET available_time = ?, is_logged_in = "off" WHERE id = ?',
@@ -527,7 +527,7 @@ app.get('/api/seats', (req, res) => {
                     console.error('남은 시간 저장 실패:', error);
                     return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
                 }
-
+    
                 // 좌석 정보 초기화
                 connection.query(
                     'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
