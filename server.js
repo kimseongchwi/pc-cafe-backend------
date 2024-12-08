@@ -218,6 +218,16 @@ function startApp() {
                 console.error(`${tableName} 백업 실패:`, error);
                 return;
             }
+            // 한국 시간대로 변환
+            results = results.map(row => {
+                if (row.created_at) {
+                    const localDate = new Date(row.created_at);
+                    const koreaTimeOffset = 9 * 60; // 한국 시간대는 UTC+9
+                    localDate.setMinutes(localDate.getMinutes() + koreaTimeOffset);
+                    row.created_at = localDate.toISOString().slice(0, 19).replace('T', ' ');
+                }
+                return row;
+            });
             fs.writeFileSync(backupFile, JSON.stringify(results, null, 2));
             console.log(`${tableName} 백업 완료`);
         });
