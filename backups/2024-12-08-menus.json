@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "133131",
+    "price": 313131,
+    "category": "식사",
+    "image_path": null,
+    "created_at": "2024-12-06 12:04:00"
+  },
+  {
+    "id": 3,
+    "name": "121212",
+    "price": 1212,
+    "category": "식사",
+    "image_path": null,
+    "created_at": "2024-12-08 04:43:07"
+  },
+  {
+    "id": 5,
+    "name": "12112",
+    "price": 211212,
+    "category": "식사",
+    "image_path": null,
+    "created_at": "2024-12-08 23:08:54"
+  }
+]
