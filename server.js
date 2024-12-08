@@ -336,20 +336,20 @@ function startApp() {
     });
 
     // 좌석 정보 조회 API
-    app.get('/api/seats', (req, res) => {
-        connection.query(
-            `SELECT s.*, u.available_time 
-             FROM seats s
-             LEFT JOIN users u ON s.user_id = u.id`,
-            (error, results) => {
-                if (error) {
-                    console.error('좌석 정보 조회 실패:', error);
-                    return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
-                }
-                res.json(results);
+app.get('/api/seats', (req, res) => {
+    connection.query(
+        `SELECT s.number, s.start_time, u.name AS user_name, u.available_time 
+         FROM seats s
+         LEFT JOIN users u ON s.user_id = u.id`,
+        (error, results) => {
+            if (error) {
+                console.error('좌석 정보 조회 실패:', error);
+                return res.status(500).json({ message: '좌석 정보 조회에 실패했습니다.' });
             }
-        );
-    });
+            res.json(results);
+        }
+    );
+});
 
     // 관리자용 좌석 정보 조회 API
     app.get('/api/admin/seats', authenticateToken, isAdmin, (req, res) => {
