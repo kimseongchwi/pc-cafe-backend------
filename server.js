@@ -440,7 +440,7 @@ app.get('/api/seats', (req, res) => {
     // 로그인 시 좌석 업데이트
     app.post('/api/auth/login', async (req, res) => {
         const { registerid, password, seatNumber } = req.body;
-
+    
         connection.query(
             'SELECT * FROM users WHERE registerid = ?',
             [registerid],
@@ -448,14 +448,20 @@ app.get('/api/seats', (req, res) => {
                 if (error || results.length === 0) {
                     return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
                 }
-
+    
                 const user = results[0];
+    
+                // 중복 로그인 방지
+                if (user.is_logged_in === 'on') {
+                    return res.status(403).json({ message: '중복 로그인되어있습니다. 먼저 사용을 종료해주세요.' });
+                }
+    
                 const validPassword = await bcrypt.compare(password, user.password);
-
+    
                 if (!validPassword) {
                     return res.status(401).json({ message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
                 }
-
+    
                 const token = jwt.sign(
                     {
                         id: user.id,
@@ -466,7 +472,7 @@ app.get('/api/seats', (req, res) => {
                     JWT_SECRET,
                     { expiresIn: '24h' }
                 );
-
+    
                 // 좌석 업데이트 (관리자가 아닌 경우에만)
                 if (seatNumber && user.role !== 'admin') {
                     connection.query(
@@ -479,7 +485,7 @@ app.get('/api/seats', (req, res) => {
                         }
                     );
                 }
-
+    
                 // 로그인 상태 업데이트
                 connection.query(
                     'UPDATE users SET is_logged_in = "on" WHERE id = ?',
@@ -490,7 +496,7 @@ app.get('/api/seats', (req, res) => {
                         }
                     }
                 );
-
+    
                 res.json({
                     token,
                     user: {
@@ -501,7 +507,7 @@ app.get('/api/seats', (req, res) => {
                         available_time: user.available_time
                     }
                 });
-
+    
                 backupData('users'); // 로그인 후 백업
             }
         );
