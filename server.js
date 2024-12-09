@@ -727,7 +727,8 @@ app.post('/api/auth/logout', authenticateToken, (req, res) => {
                     console.error('시간 충전 실패:', error);
                     return res.status(500).json({ message: '시간 충전에 실패했습니다.' });
                 }
-                res.json({ message: `시간 충전이 완료되었습니다.` });
+                const chargedMinutes = hours ; // 충전된 시간을 분 단위로 계산
+                res.json({ message: `${chargedMinutes}시간 충전이 완료되었습니다.` });
                 backupData('users');
             }
         );
