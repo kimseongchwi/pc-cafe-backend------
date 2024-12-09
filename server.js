@@ -517,36 +517,36 @@ app.get('/api/seats', (req, res) => {
     });
 
     // 로그아웃 시 로그인 상태 업데이트
-    app.post('/api/auth/logout', authenticateToken, (req, res) => {
-        const userId = req.user.id;
-        const remainingTime = req.body.remainingTime;
+app.post('/api/auth/logout', authenticateToken, (req, res) => {
+    const userId = req.user.id;
+    const remainingTime = req.body.remainingTime;
 
-        // 남은 시간 저장
-        connection.query(
-            'UPDATE users SET available_time = ?, is_logged_in = "off" WHERE id = ?',
-            [remainingTime, userId],
-            (error) => {
-                if (error) {
-                    console.error('남은 시간 저장 실패:', error);
-                    return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
-                }
-
-                // 좌석 정보 초기화
-                connection.query(
-                    'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
-                    [userId],
-                    (error) => {
-                        if (error) {
-                            console.error('좌석 정보 초기화 실패:', error);
-                            return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
-                        }
-                        res.json({ message: '로그아웃이 완료되었습니다.' });
-                        backupData('users'); // 로그아웃 후 백업
-                    }
-                );
+    // 남은 시간 저장
+    connection.query(
+        'UPDATE users SET available_time = ?, is_logged_in = "off" WHERE id = ?',
+        [remainingTime, userId],
+        (error) => {
+            if (error) {
+                console.error('남은 시간 저장 실패:', error);
+                return res.status(500).json({ message: '남은 시간 저장에 실패했습니다.' });
             }
-        );
-    });
+
+            // 좌석 정보 초기화
+            connection.query(
+                'UPDATE seats SET registerid = NULL, user_id = NULL, user_name = NULL, start_time = NULL WHERE user_id = ?',
+                [userId],
+                (error) => {
+                    if (error) {
+                        console.error('좌석 정보 초기화 실패:', error);
+                        return res.status(500).json({ message: '로그아웃 처리 중 오류가 발생했습니다.' });
+                    }
+                    res.json({ message: '로그아웃이 완료되었습니다.' });
+                    backupData('users'); // 로그아웃 후 백업
+                }
+            );
+        }
+    );
+});
 
     // 아이디 중복 확인 API
     app.get('/api/auth/check-registerid/:registerid', (req, res) => {
