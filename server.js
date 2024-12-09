@@ -203,7 +203,10 @@ function startApp() {
 
     // 데이터 백업 함수
     const backupData = (tableName) => {
-        const date = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        // 한국 시간대(UTC+9)로 변환
+        now.setHours(now.getHours() + 9);
+        const date = now.toISOString().split('T')[0];
         const backupFile = path.join(backupsDir, `${date}-${tableName}.json`);
 
         let query = `SELECT * FROM ${tableName}`;
