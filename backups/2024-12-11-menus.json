@@ -5,7 +5,7 @@
     "price": 6500,
     "category": "식사",
     "image_path": "uploads/제육볶음.png",
-    "created_at": "2024-12-09 05:58:48"
+    "created_at": "2024-12-08 20:58:48"
   },
   {
     "id": 14,
@@ -13,7 +13,7 @@
     "price": 6000,
     "category": "식사",
     "image_path": "uploads/돈까스.png",
-    "created_at": "2024-12-09 05:59:06"
+    "created_at": "2024-12-08 20:59:06"
   },
   {
     "id": 15,
@@ -21,7 +21,7 @@
     "price": 6000,
     "category": "식사",
     "image_path": "uploads/냉면.png",
-    "created_at": "2024-12-09 05:59:18"
+    "created_at": "2024-12-08 20:59:18"
   },
   {
     "id": 16,
@@ -29,7 +29,7 @@
     "price": 6500,
     "category": "식사",
     "image_path": "uploads/치킨마요덮밥.png",
-    "created_at": "2024-12-09 05:59:41"
+    "created_at": "2024-12-08 20:59:41"
   },
   {
     "id": 17,
@@ -37,7 +37,7 @@
     "price": 5500,
     "category": "식사",
     "image_path": "uploads/대패삼겹볶음밥.png",
-    "created_at": "2024-12-09 06:00:01"
+    "created_at": "2024-12-08 21:00:01"
   },
   {
     "id": 18,
@@ -45,7 +45,7 @@
     "price": 4000,
     "category": "라면",
     "image_path": "uploads/진라면.png",
-    "created_at": "2024-12-09 06:01:05"
+    "created_at": "2024-12-08 21:01:05"
   },
   {
     "id": 19,
@@ -53,7 +53,7 @@
     "price": 4500,
     "category": "라면",
     "image_path": "uploads/짜파게티.png",
-    "created_at": "2024-12-09 06:01:18"
+    "created_at": "2024-12-08 21:01:18"
   },
   {
     "id": 20,
@@ -61,7 +61,7 @@
     "price": 4000,
     "category": "라면",
     "image_path": "uploads/참깨라면.png",
-    "created_at": "2024-12-09 06:01:28"
+    "created_at": "2024-12-08 21:01:28"
   },
   {
     "id": 21,
@@ -69,7 +69,7 @@
     "price": 4000,
     "category": "라면",
     "image_path": "uploads/신라면.png",
-    "created_at": "2024-12-09 06:01:36"
+    "created_at": "2024-12-08 21:01:36"
   },
   {
     "id": 22,
@@ -77,7 +77,7 @@
     "price": 4500,
     "category": "라면",
     "image_path": "uploads/너구리.png",
-    "created_at": "2024-12-09 06:01:46"
+    "created_at": "2024-12-08 21:01:46"
   },
   {
     "id": 23,
@@ -85,7 +85,7 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/코카콜라.png",
-    "created_at": "2024-12-09 06:02:06"
+    "created_at": "2024-12-08 21:02:06"
   },
   {
     "id": 24,
@@ -93,7 +93,7 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/스프라이트.png",
-    "created_at": "2024-12-09 06:02:14"
+    "created_at": "2024-12-08 21:02:14"
   },
   {
     "id": 25,
@@ -101,7 +101,7 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/코코팜.png",
-    "created_at": "2024-12-09 06:02:22"
+    "created_at": "2024-12-08 21:02:22"
   },
   {
     "id": 26,
@@ -109,7 +109,7 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/봉봉.png",
-    "created_at": "2024-12-09 06:02:29"
+    "created_at": "2024-12-08 21:02:29"
   },
   {
     "id": 27,
@@ -117,7 +117,7 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/밀키스.png",
-    "created_at": "2024-12-09 06:02:36"
+    "created_at": "2024-12-08 21:02:36"
   },
   {
     "id": 28,
@@ -125,7 +125,7 @@
     "price": 2000,
     "category": "과자",
     "image_path": "uploads/썬칩.png",
-    "created_at": "2024-12-09 06:02:52"
+    "created_at": "2024-12-08 21:02:52"
   },
   {
     "id": 29,
@@ -133,7 +133,7 @@
     "price": 3000,
     "category": "과자",
     "image_path": "uploads/버터와플.png",
-    "created_at": "2024-12-09 06:03:00"
+    "created_at": "2024-12-08 21:03:00"
   },
   {
     "id": 30,
@@ -141,7 +141,7 @@
     "price": 2000,
     "category": "과자",
     "image_path": "uploads/포스틱.png",
-    "created_at": "2024-12-09 06:03:10"
+    "created_at": "2024-12-08 21:03:10"
   },
   {
     "id": 31,
@@ -149,7 +149,7 @@
     "price": 2000,
     "category": "과자",
     "image_path": "uploads/허니버터칩.png",
-    "created_at": "2024-12-09 06:03:22"
+    "created_at": "2024-12-08 21:03:22"
   },
   {
     "id": 32,
@@ -157,7 +157,7 @@
     "price": 2000,
     "category": "과자",
     "image_path": "uploads/홈런볼.png",
-    "created_at": "2024-12-09 06:03:29"
+    "created_at": "2024-12-08 21:03:29"
   },
   {
     "id": 34,
@@ -165,6 +165,14 @@
     "price": 2000,
     "category": "음료",
     "image_path": "uploads/코카콜라 제로.png",
-    "created_at": "2024-12-11 00:52:32"
+    "created_at": "2024-12-10 15:52:32"
+  },
+  {
+    "id": 35,
+    "name": "짬뽕",
+    "price": 7000,
+    "category": "식사",
+    "image_path": null,
+    "created_at": "2024-12-11 14:55:58"
   }
 ]

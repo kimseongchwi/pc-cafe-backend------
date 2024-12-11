@@ -6,9 +6,9 @@
     "name": "USER",
     "phone_number": "010-1234-5678",
     "role": "user",
-    "available_time": 357139,
+    "available_time": 355970,
     "is_logged_in": "off",
-    "created_at": "2024-12-09 12:01:05"
+    "created_at": "2024-12-08 18:01:05"
   },
   {
     "id": 17,
@@ -19,7 +19,7 @@
     "role": "user",
     "available_time": 358883,
     "is_logged_in": "off",
-    "created_at": "2024-12-10 15:24:30"
+    "created_at": "2024-12-09 21:24:30"
   },
   {
     "id": 18,
@@ -30,7 +30,7 @@
     "role": "user",
     "available_time": 178975,
     "is_logged_in": "off",
-    "created_at": "2024-12-10 15:25:10"
+    "created_at": "2024-12-09 21:25:10"
   },
   {
     "id": 19,
@@ -41,7 +41,7 @@
     "role": "user",
     "available_time": 34990,
     "is_logged_in": "off",
-    "created_at": "2024-12-10 15:26:02"
+    "created_at": "2024-12-09 21:26:02"
   },
   {
     "id": 20,
@@ -52,7 +52,7 @@
     "role": "user",
     "available_time": 197100,
     "is_logged_in": "off",
-    "created_at": "2024-12-10 15:26:33"
+    "created_at": "2024-12-09 21:26:33"
   },
   {
     "id": 21,
@@ -63,6 +63,6 @@
     "role": "admin",
     "available_time": null,
     "is_logged_in": "off",
-    "created_at": "2024-12-10 15:32:07"
+    "created_at": "2024-12-09 21:32:07"
   }
 ]
